@@ -114,8 +114,14 @@ Download it to your laptop or desktop, not to the Eversolo. The next section sho
 
 1. On the same **Transfer** screen, **Method 2** shows a network share address for Windows (starts with `\\`) and Mac (starts with `smb://`).
 2. Open it on your computer: in Windows File Explorer type the `\\` address in the address bar; on a Mac use **Go > Connect to Server** with the `smb://` address (choose **Guest** if asked).
-3. Copy the APK into any folder on the Eversolo, for example `Download`.
-4. On the Eversolo, open the **Files** app, go to that folder, tap `EverSignal-1.0.0.apk` and tap **Install**.
+3. Copy the APK into any folder on the Eversolo, for example `Download` on the SSD.
+4. On the Eversolo, open the **Files** app, go to that folder and tap `EverSignal-1.0.0.apk`. Tap **Install**.
+
+   ![Install prompt in the Eversolo Files app](docs/install/smb-1-install.jpg)
+
+5. **Tap Open** to start it now, or **Done** and find it later in the **Apps** tab.
+
+   ![EverSignal installed](docs/install/smb-2-installed.jpg)
 
 ### Is this file really from me?
 
