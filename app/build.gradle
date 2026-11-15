@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.malbers.eversignal'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.malbers.eversignal'
+        minSdk 26
+        targetSdk 29
+        versionCode 100
+        versionName '1.0.0'
+    }
+
+    // The release key lives outside the repo (made by scripts/new-signing-key.ps1). Without it, release
+    // builds fall back to the debug key, which is fine for testing and must never be shared.
+    def signingProps = new File(System.getProperty('user.home'), '.claude/.secrets/eversignal-signing.properties')
+    signingConfigs {
+        release {
+            if (signingProps.exists()) {
+                def p = new Properties()
+                signingProps.withInputStream { p.load(it) }
+                storeFile file(p.getProperty('storeFile'))
+                storePassword p.getProperty('storePassword')
+                keyAlias p.getProperty('keyAlias')
+                keyPassword p.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingProps.exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    // Sideloaded, never on Play: the Play target-SDK floor doesn't apply.
+    lint { disable 'ExpiredTargetSdkVersion' }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions { unitTests.returnDefaultValues = true }
+}
+
+dependencies {
+    testImplementation 'org.json:json:20231013'
+    testImplementation 'junit:junit:4.13.2'
+}

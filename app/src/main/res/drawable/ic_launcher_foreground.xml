@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Signal path: four nodes joined by a line, the last one green (bit-perfect). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#F4F1EC" android:strokeWidth="3" android:pathData="M30,54H78" />
+    <path android:fillColor="#F4F1EC" android:pathData="M25,54a5,5 0,1 1,10 0a5,5 0,1 1,-10 0z" />
+    <path android:fillColor="#F4F1EC" android:pathData="M41,54a5,5 0,1 1,10 0a5,5 0,1 1,-10 0z" />
+    <path android:fillColor="#F4F1EC" android:pathData="M57,54a5,5 0,1 1,10 0a5,5 0,1 1,-10 0z" />
+    <path android:fillColor="#5FD08B" android:pathData="M72,54a6,6 0,1 1,12 0a6,6 0,1 1,-12 0z" />
+</vector>
