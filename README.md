@@ -1,6 +1,6 @@
-# EverSignal
+# EverSignal: now-playing stats for the Eversolo DMP-A6
 
-**See every bit of your music, from the file to your DAC.**
+**See every bit of your music, from the file to your DAC.** A free, read-only Android app that runs right on your Eversolo DMP-A6 streamer.
 
 Are you a streaming nerd? Do you check the sample rate before the song title? Ever wondered whether that 24-bit TIDAL track really reaches your DAC untouched, or what your Eversolo is quietly doing to it on the way? **This player is for you.**
 
