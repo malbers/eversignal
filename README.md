@@ -122,7 +122,7 @@ Download it to your laptop or desktop, not to the Eversolo. The next section sho
 Every official release is signed with the same key. If you want to check a copy you got somewhere else, its SHA-256 certificate fingerprint should be:
 
 ```
-@@FINGERPRINT@@
+351e63f51b6bed49f8e5282c2cf1427ce8bb5e7fee3558ab4899c5b6ca146ca2
 ```
 
 An APK with a different signer did not come from here.
