@@ -29,7 +29,9 @@ Big, readable from across the room:
 - Play/pause, next, previous and up next, plus a **VU** button that switches the Eversolo's own screen to its VU meters.
 - **made by @malbers** under the cover opens my YouTube channel, if you have a browser on the Eversolo.
 
-![MQA from the library, sent to the DAC](docs/screenshots/1b-simple-mqa.jpg)
+| MQA from the library, sent to the DAC | EQ on: no longer bit-perfect, and it says so |
+|---|---|
+| ![MQA to DAC](docs/screenshots/1b-simple-mqa.jpg) | ![EQ active](docs/screenshots/1c-simple-eq.jpg) |
 
 ### Detail: stats for nerds
 
