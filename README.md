@@ -148,7 +148,7 @@ EverSignal is an independent app. It is not made by or affiliated with Eversolo,
 
 ## Feedback
 
-Found a bug, have an idea, or got a question? [Open an issue](https://github.com/malbers/eversignal/issues). A screenshot of the Detail pages helps a lot (blur the Device page first).
+Found a bug, have an idea, or tried it on another Eversolo model? **[Tell me here](https://docs.google.com/forms/d/e/1FAIpQLSdaQcFaXOcaRyZr520Lxir_NmPKtZG6aojfJ15XBwSbSB9ffQ/viewform)**. It's a short form, no account needed, and I read every one. If you're on GitHub, you can also [open an issue](https://github.com/malbers/eversignal/issues). A screenshot of the Detail pages helps a lot (blur the Device page first).
 
 ## Building from source
 
