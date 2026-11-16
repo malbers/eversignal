@@ -26,6 +26,7 @@ EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole 
 - [Updating](#updating)
 - [What's new](#whats-new)
 - [Tested on](#tested-on)
+- [More from the community](#more-from-the-community)
 - [Feedback](#feedback)
 - [Building from source](#building-from-source)
 - [Credits](#credits)
@@ -44,28 +45,18 @@ I always wanted to know what my DMP-A6 actually sends to my DAC. Is that TIDAL t
 
 ## What people are saying
 
-From the Eversolo Facebook groups, launch day:
+From the Eversolo Facebook groups:
 
-> "You sir are a clever little cookie"<br>
-> **Martin M.**
+> "works perfectly on the T10. Bigger screen not fully used, but centred nicely"<br>
+> **Steven C-H.**
 
-> "Congrats and Thanks for your APP."<br>
-> **Patricio M.**
+> "A8 here, seems to work perfectly. Great work"<br>
+> **Michael W. S.**
 
-> "Nice, thanks!"<br>
-> **Emilio M.**
+> "I've installed an apk using a USB, but not directly. So straightforward!"<br>
+> **Steve G.**
 
-> "Very cool!"<br>
-> **Lou S.**
-
-> "I'm really enjoying this. Thanks!"<br>
-> **Michael K.**
-
-> "by the way, it looks like a great product. Thank you."<br>
-> **David S.**
-
-> "Pretty awesome!"<br>
-> **Weston T.**
+**[See more comments ↓](#more-from-the-community)**
 
 ## What you get
 
@@ -219,9 +210,46 @@ From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, 
 
 ## Tested on
 
-Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with the library (FLAC, WAV, DSD, MQA, MP3), TIDAL, Apple Music, Amazon Music, AirPlay and TIDAL Connect, on XLR/RCA and USB DAC outputs. Other Eversolo models may work but are untested.
+Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with the library (FLAC, WAV, DSD, MQA, MP3), TIDAL, Apple Music, Amazon Music, AirPlay and TIDAL Connect, on XLR/RCA and USB DAC outputs. Owners report it working on the DMP-A8, DMP-T8 and DMP-T10. It does not run on non-Eversolo Android boxes.
 
 EverSignal is an independent app. It is not made by or affiliated with Eversolo, and it reads the player's undocumented local interface, which a firmware update could change.
+
+## More from the community
+
+### Real use: the DSD that wasn't native
+
+Martin M. was playing a DSD file (DSF, 2.8 MHz) to his amp over HDMI and assumed it was going out as native DSD. EverSignal showed otherwise: the badge read **DSD → PCM**, so the player was converting it on the way out. After checking the A6's HDMI DSD setting and a restart, EverSignal showed **DSD64, native**, all the way to the port. In his words: "working now after I did a restart bloody great app I like it."
+
+That's what it's for: the player knows what it's doing to your music, it just doesn't show you.
+
+### From the Eversolo Facebook groups
+
+> "Fantastico su T8 grazie !!!"<br>
+> **Giuseppe V.**
+
+> "Thanks for making this. Works perfect."<br>
+> **Henri S.**
+
+> "You sir are a clever little cookie"<br>
+> **Martin M.**
+
+> "I'm really enjoying this. Thanks!"<br>
+> **Michael K.**
+
+> "by the way, it looks like a great product. Thank you."<br>
+> **David S.**
+
+> "Pretty awesome!"<br>
+> **Weston T.**
+
+> "Congrats and Thanks for your APP."<br>
+> **Patricio M.**
+
+> "Very cool!"<br>
+> **Lou S.**
+
+> "Nice, thanks!"<br>
+> **Emilio M.**
 
 ## Feedback
 
