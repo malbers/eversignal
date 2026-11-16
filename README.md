@@ -1,4 +1,4 @@
-![EverSignal Simple screen: TIDAL, FLAC 44.1 kHz / 16-bit, EQ off, bit-perfect to the USB DAC](docs/screenshots/1-simple-v102.jpg)
+![EverSignal Simple screen: TIDAL, FLAC 192 kHz / 24-bit, EQ off, bit-perfect to the USB DAC](docs/screenshots/1-simple-v102-192.jpg)
 
 # EverSignal: now-playing stats for the Eversolo DMP-A6
 
@@ -18,7 +18,7 @@ I always wanted to know what my DMP-A6 actually sends to my DAC. Is that TIDAL t
 
 | The stock player screen | The same track in EverSignal |
 |---|---|
-| ![Stock Eversolo player](docs/screenshots/0-stock-player.jpg) | ![EverSignal Simple](docs/screenshots/1-simple-v102.jpg) |
+| ![Stock Eversolo player](docs/screenshots/0-stock-player.jpg) | ![EverSignal Simple](docs/screenshots/1-simple-v102-192.jpg) |
 
 ## What people are saying
 
