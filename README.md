@@ -10,6 +10,28 @@ EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole 
 
 **It only reads. It never writes.** No settings changed, no files touched, nothing in your library edited. The only things it ever asks the player to do are the buttons you tap: play/pause, next, previous, and the VU screen.
 
+**Contents**
+
+- [Why did I build this?](#why-did-i-build-this)
+- [What people are saying](#what-people-are-saying)
+- [What you get](#what-you-get)
+- [How to use it](#how-to-use-it)
+- [What "Bit-perfect" means here](#what-bit-perfect-means-here)
+- [What it never does](#what-it-never-does)
+- [Download](#download)
+- [How to Install](#how-to-install)
+  - [Option A: from a USB thumb drive](#option-a-from-a-usb-thumb-drive)
+  - [Option B: the Eversolo's upload page](#option-b-the-eversolos-upload-page)
+  - [Option C: copy it over the network, then tap to install](#option-c-copy-it-over-the-network-then-tap-to-install)
+- [Updating](#updating)
+- [What's new](#whats-new)
+- [Tested on](#tested-on)
+- [Feedback](#feedback)
+- [Building from source](#building-from-source)
+- [Credits](#credits)
+- [Licence](#licence)
+- [Also from me](#also-from-me)
+
 ## Why did I build this?
 
 I always wanted to know what my DMP-A6 actually sends to my DAC. Is that TIDAL track really bit-perfect, or is something resampling it on the way? The player knows, it just doesn't show you. I was curious how much I could pull right on the device, and it turned out to be a lot. So I built a free app for it.
@@ -124,9 +146,19 @@ Download it to your laptop or desktop, not to the Eversolo. The next section sho
 
 **What you're doing:** an `.apk` file is an Android app. The Eversolo runs Android underneath, so it can install apps that aren't in its app store, usually called "sideloading". It takes a couple of minutes and you only do it once.
 
-**Before you start:** your computer and the Eversolo must be on the same home network.
+**For Options B and C:** your computer and the Eversolo must be on the same home network.
 
-### Option A: the Eversolo's upload page (easiest)
+### Option A: from a USB thumb drive
+
+No network needed.
+
+1. **Copy the APK onto a USB thumb drive** (FAT32, exFAT or NTFS, which covers almost any drive).
+2. **Plug it into a USB port on the back of the Eversolo.**
+3. **Open the Files app**, pick the USB drive in the list on the left, and go to the folder with the APK.
+4. **Tap `EverSignal-1.0.2.apk`, then Install.** If it asks to allow installs from unknown sources, turn that on for Files.
+5. **Tap Done**, then find it in the **Apps** tab.
+
+### Option B: the Eversolo's upload page
 
 1. **Find the Eversolo's address.** On the Eversolo, go to **Settings > Network Settings > Transfer**. Under **Method 1** it shows a web address that starts with `http://` and ends in `:9587`.
 
@@ -144,7 +176,7 @@ Download it to your laptop or desktop, not to the Eversolo. The next section sho
 
    ![EverSignal in the Eversolo Apps tab](docs/install/4-apps-tab.jpg)
 
-### Option B: copy it over the network, then tap to install
+### Option C: copy it over the network, then tap to install
 
 1. On the same **Transfer** screen, **Method 2** shows a network share address for Windows (starts with `\\`) and Mac (starts with `smb://`).
 2. Open it on your computer: in Windows File Explorer type the `\\` address in the address bar; on a Mac use **Go > Connect to Server** with the `smb://` address (choose **Guest** if asked).
