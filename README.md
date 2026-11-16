@@ -8,6 +8,10 @@ EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole 
 
 **It only reads. It never writes.** No settings changed, no files touched, nothing in your library edited. The only things it ever asks the player to do are the buttons you tap: play/pause, next, previous, and the VU screen.
 
+## Why did I build this?
+
+I always wanted to know what my DMP-A6 actually sends to my DAC. Is that TIDAL track really bit-perfect, or is something resampling it on the way? The player knows, it just doesn't show you. I was curious how much I could pull right on the device, and it turned out to be a lot. So I built a free app for it.
+
 > **Made by Michael Albers.** I make honest videos about budget audio equipment, including a lot of Eversolo DMP-A6 how-tos. If you like this app, come find more on my YouTube channel: **[youtube.com/@malbers](https://www.youtube.com/@malbers)**
 
 ![EverSignal Simple screen: TIDAL, FLAC 192 kHz / 24-bit, bit-perfect to the USB DAC](docs/screenshots/1-simple.jpg)
