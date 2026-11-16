@@ -120,9 +120,9 @@ The badge says **Bit-perfect** only when all of these are true:
 
 - PCM goes out at the source's own sample rate (no resampling)
 - EQ and DSP are off
-- The volume is at 0 dB or locked, because digital volume changes the samples
+- The volume is at 0 dB or locked, because digital volume changes the samples (why Passthrough is recommended, ONLY if you have a DAC or downstream Amplifier that handles the volume downstream)
 
-If one isn't, the badge says which one (Resampled, EQ active, Volume −12 dB). What it can't check: the output bit depth (the DMP-A6 never reports it), and anything after the Eversolo's output, like the DAC or amp it feeds.
+If one isn't "Bit-Perfect", the badge says which one (Resampled, EQ active, Volume −12 dB). What it can't check: the output bit depth (the DMP-A6 never reports it), and anything after the Eversolo's output, like the DAC or amp it feeds.
 
 ### The other badges
 
