@@ -16,6 +16,22 @@ EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole 
 |---|---|
 | ![Stock Eversolo player](docs/screenshots/0-stock-player.jpg) | ![EverSignal Simple](docs/screenshots/1-simple.jpg) |
 
+## What people are saying
+
+From the *EverSolo DMP-A6 User & Friends* group on Facebook, launch day:
+
+> "You sir are a clever little cookie"<br>
+> **Martin M.**
+
+> "Congrats and Thanks for your APP."<br>
+> **Patricio M.**
+
+> "Nice, thanks!"<br>
+> **Emilio M.**
+
+> "Very cool!"<br>
+> **Lou S.**
+
 ## What you get
 
 ### Simple: the couch view
@@ -153,22 +169,6 @@ From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, 
 Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with the library (FLAC, WAV, DSD, MQA, MP3), TIDAL, Apple Music, Amazon Music, AirPlay and TIDAL Connect, on XLR/RCA and USB DAC outputs. Other Eversolo models may work but are untested.
 
 EverSignal is an independent app. It is not made by or affiliated with Eversolo, and it reads the player's undocumented local interface, which a firmware update could change.
-
-## What people are saying
-
-From the *EverSolo DMP-A6 User & Friends* group on Facebook, launch day:
-
-> "You sir are a clever little cookie"<br>
-> **Martin M.**
-
-> "Congrats and Thanks for your APP."<br>
-> **Patricio M.**
-
-> "Nice, thanks!"<br>
-> **Emilio M.**
-
-> "Very cool!"<br>
-> **Lou S.**
 
 ## Feedback
 
