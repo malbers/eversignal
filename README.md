@@ -16,7 +16,7 @@ EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole 
 - [What people are saying](#what-people-are-saying)
 - [What you get](#what-you-get)
 - [How to use it](#how-to-use-it)
-- [What "Bit-perfect" means here](#what-bit-perfect-means-here)
+- [What the badge means](#what-the-badge-means)
 - [What it never does](#what-it-never-does)
 - [Download](#download)
 - [How to Install](#how-to-install)
@@ -114,15 +114,22 @@ Each page scrolls. Top and scrolled views:
 
 **Stay in front** (Detail, page 1, bottom right): starting a track from your phone or connecting AirPlay makes the Eversolo jump to its own player screen. With Stay in front on, EverSignal comes back by itself a couple of seconds later. The first time, Android asks you to allow **Display over other apps**; turn it on, go back, and tap Stay in front again. The Back button always turns it off, so the app can never trap the screen.
 
-## What "Bit-perfect" means here
+## What the badge means
 
-The badge says **Bit-perfect** only when all of these are true:
+The badge under the title is EverSignal's verdict on what happens to your music between the file and the output. Tap it on the player for the short version.
 
-- PCM goes out at the source's own sample rate (no resampling)
-- EQ and DSP are off
-- The volume is at 0 dB or locked, because digital volume changes the samples
+- **Bit-perfect**: PCM goes out at the source's own sample rate, EQ and DSP are off, and the volume is at 0 dB or locked. Nothing changed the samples.
+- **Resampled**: the player changes the sample rate on the way out (for example 44.1 kHz in, 96 kHz out), usually because of an upsampling setting or a fixed output rate.
+- **EQ active / DSP active**: same rate in and out, but EQ or another sound effect is changing the samples.
+- **Volume −12 dB** (or whatever it's set to): everything else is clean, but digital volume below 0 dB changes the samples.
+- **DSD native**: a DSD file goes out as DSD, untouched.
+- **DSD → PCM**: a DSD file is converted to PCM on the way out, often because the output, or what's connected to it, is set to take PCM only. Check that output's DSD setting.
+- **MQA to DAC**: the MQA stream goes to your DAC as is, for the DAC to unfold.
+- **MQA unfolded ×2** (or ×4): the player unfolds MQA itself, to two or four times the stream's rate.
+- **Lossy (MP3, AAC, …)**: the source itself is compressed with loss. Nothing further down the chain can bring that back.
+- **Hi-res stream**: the streaming service says it's hi-res, but the player doesn't report what it sends out, so there's no verdict to give.
 
-If one isn't, the badge says which one (Resampled, EQ active, Volume −12 dB). What it can't check: the output bit depth (the DMP-A6 never reports it), and anything after the Eversolo's output, like the DAC or amp it feeds.
+What it can't check: the output bit depth (the player doesn't report it), and anything after the Eversolo's output, like the DAC or amp it feeds.
 
 ## What it never does
 
@@ -226,7 +233,7 @@ From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, 
 
 ## Tested on
 
-Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with the library (FLAC, WAV, DSD, MQA, MP3), TIDAL, Apple Music, Amazon Music, AirPlay and TIDAL Connect, on XLR/RCA and USB DAC outputs. Owners report it working on the DMP-A8, DMP-T8 and DMP-T10. It does not run on non-Eversolo Android boxes.
+Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with the library (FLAC, WAV, DSD, MQA, MP3), TIDAL, Apple Music, Amazon Music, AirPlay and TIDAL Connect, on XLR/RCA and USB DAC outputs. Owners report it working on the DMP-A6 Master Gen 2, DMP-A8, DMP-T8, DMP-T10 and the Play. It does not run on non-Eversolo Android boxes.
 
 EverSignal is an independent app. It is not made by or affiliated with Eversolo, and it reads the player's undocumented local interface, which a firmware update could change.
 
