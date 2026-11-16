@@ -136,7 +136,7 @@ If one isn't, the badge says which one (Resampled, EQ active, Volume −12 dB). 
 
 ## Download
 
-[**EverSignal-1.0.3.apk**](https://github.com/malbers/eversignal/releases/download/v1.0.3/EverSignal-1.0.3.apk) (from the [v1.0.3 release](https://github.com/malbers/eversignal/releases/tag/v1.0.3))
+[**Download the latest EverSignal**](https://github.com/malbers/eversignal/releases/latest): on the release page, click `EverSignal-<version>.apk` under **Assets**. This link always opens the newest version.
 
 Download it to your laptop or desktop, not to the Eversolo. The next section shows how to get it onto the Eversolo.
 
@@ -153,7 +153,7 @@ No network needed.
 1. **Copy the APK onto a USB thumb drive** (FAT32, exFAT or NTFS, which covers almost any drive).
 2. **Plug it into a USB port on the back of the Eversolo.**
 3. **Open the Files app**, pick the USB drive in the list on the left, and go to the folder with the APK.
-4. **Tap `EverSignal-1.0.3.apk`, then Install.** If it asks to allow installs from unknown sources, turn that on for Files.
+4. **Tap the `EverSignal-<version>.apk` file, then Install.** If it asks to allow installs from unknown sources, turn that on for Files.
 5. **Tap Done**, then find it in the **Apps** tab.
 
 ### Option B: the Eversolo's upload page
@@ -166,7 +166,7 @@ No network needed.
 
    ![Eversolo web upload page with the Upload Apk button](docs/install/2-upload-page.jpg)
 
-3. **Send the app.** Click **Select APK File** and choose `EverSignal-1.0.3.apk` from your Downloads folder. It uploads and installs by itself.
+3. **Send the app.** Click **Select APK File** and choose the `EverSignal-<version>.apk` file from your Downloads folder. It uploads and installs by itself.
 
    ![Select APK File](docs/install/3-select-apk.jpg)
 
@@ -179,7 +179,7 @@ No network needed.
 1. On the same **Transfer** screen, **Method 2** shows a network share address for Windows (starts with `\\`) and Mac (starts with `smb://`).
 2. Open it on your computer: in Windows File Explorer type the `\\` address in the address bar; on a Mac use **Go > Connect to Server** with the `smb://` address (choose **Guest** if asked).
 3. Copy the APK into any folder on the Eversolo, for example `Download` on the SSD.
-4. On the Eversolo, open the **Files** app, go to that folder and tap `EverSignal-1.0.3.apk`. Tap **Install**.
+4. On the Eversolo, open the **Files** app, go to that folder and tap the `EverSignal-<version>.apk` file. Tap **Install**.
 
    ![Install prompt in the Eversolo Files app](docs/install/smb-1-install.jpg)
 
