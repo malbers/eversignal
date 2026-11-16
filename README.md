@@ -76,13 +76,15 @@ Tap **Detail**, then swipe left or right through five pages:
 
 Anything the source doesn't report shows as N/A instead of being hidden, so you can see what each source does and doesn't give you.
 
-| Overview | Track & file |
-|---|---|
-| ![Detail page 1](docs/screenshots/2-detail-1.jpg) | ![Detail page 2](docs/screenshots/2-detail-2.jpg) |
-| **Queue & playback** | **Device** |
-| ![Detail page 3](docs/screenshots/2-detail-3.jpg) | ![Detail page 4](docs/screenshots/2-detail-4.jpg) |
-| **Inputs, outputs & volume** | |
-| ![Detail page 5](docs/screenshots/2-detail-5.jpg) | |
+Each page scrolls. Top and scrolled views:
+
+| Page | Top | Scrolled |
+|---|---|---|
+| **1 Overview** | ![Detail page 1](docs/screenshots/2-detail-1.jpg) | ![Detail page 1, scrolled](docs/screenshots/2-detail-1b.jpg) |
+| **2 Track & file** | ![Detail page 2](docs/screenshots/2-detail-2.jpg) | |
+| **3 Queue & playback** | ![Detail page 3](docs/screenshots/2-detail-3.jpg) | ![Detail page 3, scrolled](docs/screenshots/2-detail-3b.jpg) |
+| **4 Device** | ![Detail page 4](docs/screenshots/2-detail-4.jpg) | ![Detail page 4, scrolled](docs/screenshots/2-detail-4b.jpg) |
+| **5 Inputs, outputs & volume** | ![Detail page 5](docs/screenshots/2-detail-5.jpg) | ![Detail page 5, scrolled](docs/screenshots/2-detail-5b.jpg) |
 
 ## How to use it
 
