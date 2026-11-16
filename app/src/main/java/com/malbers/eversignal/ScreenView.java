@@ -68,7 +68,11 @@ public final class ScreenView extends View {
     private long infoUntil;
     private float s = 1, ox, oy;
 
-    static final String[] PAGES = {"Overview", "Track & file", "Queue & playback", "Device", "Inputs, outputs & volume"};
+    static final String[] PAGES = {"Overview", "Track & file", "Queue & playback", "Device", "Inputs, outputs & volume", "Feedback"};
+    /** 1.0.3: the last Detail page is a QR code to the feedback form (the A6 has no browser; a phone does). */
+    static final int FEEDBACK_PAGE = 5;
+    private String qrFor;
+    private Bitmap qr;
     private int page = 0;
     private final float[] scroll = new float[PAGES.length];
     private float maxScroll = 0;
@@ -449,6 +453,7 @@ public final class ScreenView extends View {
         text(c, mss(pos) + " / " + (t.durationMs > 0 ? mss(t.durationMs) : "–"), bx + barW + 10, by + 15.5f, 14, mono400, 0xB3FFFFFF, 140);
 
         drawDots(c);
+        if (page == FEEDBACK_PAGE) { drawFeedback(c, sn); return; }
         if (page > 0) { drawStatsPage(c, sn); return; }
 
         // Two columns, zoomed, scrolling. What you check at the rack comes first: Music + Source | Signal path;
@@ -1036,7 +1041,9 @@ public final class ScreenView extends View {
         Map<String, String> m = sn.modelRaw, st = sn.stateRaw;
         Section dev = new Section("Device", FLOW);
         dev.row("Model", v(m, "model")).row("Display model", v(m, "disModel")).row("Name", v(m, "deviceName"))
-            .row("Firmware", v(m, "firmware")).row("Android", v(m, "androidversion")).row("Memory", v(m, "ram"))
+            .row("Firmware", v(m, "firmware"))
+            // 1.0.3: screen size, so owners of other models can tell us what to lay out for
+            .row("Screen", screenSize()).row("App area", appArea()).row("EverSignal", BuildConfig.VERSION_NAME).row("Android", v(m, "androidversion")).row("Memory", v(m, "ram"))
             .row("Storage", v(m, "flash")).row("IP address", v(m, "ip")).row("Language", v(m, "language"))
             .row("Region code", v(m, "nationcode")).row("App code", v(m, "appcode")).row("Device type", v(m, "dType"))
             // shown on purpose: useful to the owner. Mask them before sharing a screenshot.
@@ -1227,6 +1234,83 @@ public final class ScreenView extends View {
         while (tp.measureText(text) > maxW * s && sz > size * 0.75f) { sz -= 0.5f; tp.setTextSize(sz * s); }
         tp.setLetterSpacing(0);
         label(c, text, x, baseline, sz);
+    }
+
+    // ================================================================ Feedback page (1.0.3)
+
+    /** Full screen in pixels (getRealMetrics: the whole panel, not just our window) plus density. */
+    private String screenSize() {
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+        android.view.Display d = getDisplay();
+        if (d != null) d.getRealMetrics(dm); else dm = getResources().getDisplayMetrics();
+        return FeedbackLink.sizeText(dm.widthPixels, dm.heightPixels) + ", " + dm.densityDpi + " dpi";
+    }
+
+    /** The part of the screen the player gives the app (it keeps its own sidebar). */
+    private String appArea() { return getWidth() > 0 ? FeedbackLink.sizeText(getWidth(), getHeight()) : null; }
+
+    private void drawFeedback(Canvas c, Poller.Snapshot sn) {
+        maxScroll = 0;
+        Map<String, String> m = sn.modelRaw;
+        String model = v(m, "model"), dis = v(m, "disModel"), fw = v(m, "firmware");
+        String choice = FeedbackLink.modelChoice(dis, model);
+        String screen = screenSize();
+        String details = FeedbackLink.details(BuildConfig.VERSION_NAME, model, dis, fw, v(m, "androidversion"), screen, appArea());
+        String url = FeedbackLink.url(choice, fw, details);
+
+        float lx = 24, tw = 520;
+        label(c, "FEEDBACK", lx, 104, 12);
+        fitText(c, "Found a bug, or got it working on your model?", lx, 138, 24, hanken600, Color.WHITE, tw);
+        text(c, "Scan the code with your phone to open the feedback form.", lx, 170, 17, hanken400, 0xD9FFFFFF, tw);
+        text(c, "It fills these in for you:", lx, 212, 15, hanken500, 0xB3FFFFFF, tw);
+        float ry = 240;
+        String[][] rows = {
+            {"Model", choice != null ? choice : (dis != null ? dis + " (pick yours)" : model != null ? model + " (pick yours)" : "you pick it")},
+            {"Firmware", fw != null ? fw : "N/A"},
+            {"EverSignal", BuildConfig.VERSION_NAME},
+            {"Screen", screen},
+        };
+        for (String[] r : rows) {
+            text(c, r[0], lx, ry, 15, hanken500, ACCENT, 120);
+            text(c, r[1], lx + 120, ry, 15, mono400, Color.WHITE, tw - 120);
+            ry += 26;
+        }
+        text(c, "EverSignal sends nothing. Your phone opens the form, and only if you scan.", lx, 370, 14, hanken400, 0x99FFFFFF, tw);
+        text(c, "No account needed. Email is optional.", lx, 394, 14, hanken400, 0x99FFFFFF, tw);
+
+        float box = 300, bx = 886 - 16 - box, by = 96;
+        roundRect(c, bx, by, box, box, 14, Color.WHITE);
+        Bitmap b = qrBitmap(url);
+        if (b != null) {
+            float pad = 18;
+            Paint qp = new Paint();
+            qp.setFilterBitmap(false); qp.setAntiAlias(false);
+            c.drawBitmap(b, null, new RectF(X(bx + pad), Y(by + pad), X(bx + box - pad), Y(by + box - pad)), qp);
+        } else {
+            drawCentered(c, "QR code unavailable", bx, by, box, box, 15, hanken500, DARK_TEXT);
+        }
+        drawCentered(c, "Scan with your phone camera", bx, by + box + 6, box, 24, 14, hanken500, 0xB3FFFFFF);
+    }
+
+    /** The QR code as a 1-pixel-per-module bitmap, drawn scaled up without smoothing. Rebuilt only when the link changes. */
+    private Bitmap qrBitmap(String url) {
+        if (url.equals(qrFor)) return qr;
+        qrFor = url;
+        qr = null;
+        try {
+            Map<com.google.zxing.EncodeHintType, Object> hints = new java.util.EnumMap<>(com.google.zxing.EncodeHintType.class);
+            hints.put(com.google.zxing.EncodeHintType.MARGIN, 0);
+            hints.put(com.google.zxing.EncodeHintType.ERROR_CORRECTION, com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.M);
+            com.google.zxing.common.BitMatrix mx = new com.google.zxing.qrcode.QRCodeWriter()
+                .encode(url, com.google.zxing.BarcodeFormat.QR_CODE, 0, 0, hints);
+            int w = mx.getWidth(), h = mx.getHeight();
+            int[] px = new int[w * h];
+            for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) px[y * w + x] = mx.get(x, y) ? 0xFF000000 : 0xFFFFFFFF;
+            qr = Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888);
+        } catch (com.google.zxing.WriterException e) {
+            qr = null;
+        }
+        return qr;
     }
 
     private void label(Canvas c, String text, float x, float baseline, float size) {

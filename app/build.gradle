@@ -10,8 +10,8 @@ android {
         applicationId 'com.malbers.eversignal'
         minSdk 26
         targetSdk 29
-        versionCode 107
-        versionName '1.0.2'
+        versionCode 109
+        versionName '1.0.3'
     }
 
     buildFeatures { buildConfig true }
@@ -51,6 +51,8 @@ android {
 }
 
 dependencies {
+    // QR code for the Feedback page (encode only). Apache-2.0, see THIRD_PARTY.md.
+    implementation 'com.google.zxing:core:3.5.3'
     testImplementation 'org.json:json:20231013'
     testImplementation 'junit:junit:4.13.2'
 }

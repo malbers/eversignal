@@ -130,12 +130,13 @@ If one isn't, the badge says which one (Resampled, EQ active, Volume −12 dB). 
 - It keeps a few small things in its own private app storage: today's listening totals for the Session panel, whether Stay in front is on, and the last update check. Nothing on your drives, unless you tap Update (below).
 - It only talks to the Eversolo it runs on, through the player's local interface. Two exceptions: album covers (when a streaming service gives a cover link, the picture loads from that service's own server), and once a day it asks GitHub whether a newer EverSignal is out. That check sends nothing about you or your music.
 - If a newer version is out, an **Update** pill appears under the cover. Only when you tap it does it save the new APK to the Eversolo's **Download** folder. It never installs anything by itself.
+- The **Feedback** page (the last Detail page) shows a QR code to the feedback form. EverSignal sends nothing: your phone opens the form, and only if you scan it. The code fills in your model, firmware, EverSignal version and screen size, never your network address, MAC or device ID.
 - No accounts, no analytics, no Google services. Nothing about you or your music is sent anywhere.
 - It never shows the signed part of a streaming link. The **Device** page does show the player's network address, MAC addresses and device ID, because they're useful to you; blur them before you share a screenshot.
 
 ## Download
 
-[**EverSignal-1.0.2.apk**](https://github.com/malbers/eversignal/releases/download/v1.0.2/EverSignal-1.0.2.apk) (from the [v1.0.2 release](https://github.com/malbers/eversignal/releases/tag/v1.0.2))
+[**EverSignal-1.0.3.apk**](https://github.com/malbers/eversignal/releases/download/v1.0.3/EverSignal-1.0.3.apk) (from the [v1.0.3 release](https://github.com/malbers/eversignal/releases/tag/v1.0.3))
 
 Download it to your laptop or desktop, not to the Eversolo. The next section shows how to get it onto the Eversolo.
 
@@ -152,7 +153,7 @@ No network needed.
 1. **Copy the APK onto a USB thumb drive** (FAT32, exFAT or NTFS, which covers almost any drive).
 2. **Plug it into a USB port on the back of the Eversolo.**
 3. **Open the Files app**, pick the USB drive in the list on the left, and go to the folder with the APK.
-4. **Tap `EverSignal-1.0.2.apk`, then Install.** If it asks to allow installs from unknown sources, turn that on for Files.
+4. **Tap `EverSignal-1.0.3.apk`, then Install.** If it asks to allow installs from unknown sources, turn that on for Files.
 5. **Tap Done**, then find it in the **Apps** tab.
 
 ### Option B: the Eversolo's upload page
@@ -165,7 +166,7 @@ No network needed.
 
    ![Eversolo web upload page with the Upload Apk button](docs/install/2-upload-page.jpg)
 
-3. **Send the app.** Click **Select APK File** and choose `EverSignal-1.0.2.apk` from your Downloads folder. It uploads and installs by itself.
+3. **Send the app.** Click **Select APK File** and choose `EverSignal-1.0.3.apk` from your Downloads folder. It uploads and installs by itself.
 
    ![Select APK File](docs/install/3-select-apk.jpg)
 
@@ -178,7 +179,7 @@ No network needed.
 1. On the same **Transfer** screen, **Method 2** shows a network share address for Windows (starts with `\\`) and Mac (starts with `smb://`).
 2. Open it on your computer: in Windows File Explorer type the `\\` address in the address bar; on a Mac use **Go > Connect to Server** with the `smb://` address (choose **Guest** if asked).
 3. Copy the APK into any folder on the Eversolo, for example `Download` on the SSD.
-4. On the Eversolo, open the **Files** app, go to that folder and tap `EverSignal-1.0.2.apk`. Tap **Install**.
+4. On the Eversolo, open the **Files** app, go to that folder and tap `EverSignal-1.0.3.apk`. Tap **Install**.
 
    ![Install prompt in the Eversolo Files app](docs/install/smb-1-install.jpg)
 
@@ -201,6 +202,10 @@ An APK with a different signer did not come from here.
 From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, tap **Update … · Download** under the cover. It saves the APK to **Download**. Then open **Files › Download**, tap the APK, and choose **Update**. Your settings stay. If you're on 1.0.0, install 1.0.1 by hand once, the same way you installed 1.0.0.
 
 ## What's new
+
+**1.0.3** (16 November 2026)
+- New **Feedback** page, the last Detail page: scan the QR code with your phone to send a bug, an idea, or "it works on my model". It fills in your model, firmware and EverSignal version for you.
+- The **Device** page now shows the screen size and the area EverSignal gets, to help lay it out on other models (the T10's bigger screen is next).
 
 **1.0.2** (15 November 2026)
 - Bigger text, readable standing at the rack: Detail is drawn 1.8x larger in two columns, and every page scrolls (page 1 too).
@@ -253,7 +258,7 @@ More from the Eversolo Facebook groups:
 
 ## Feedback
 
-Found a bug, have an idea, or tried it on another Eversolo model? **[Tell me here](https://docs.google.com/forms/d/e/1FAIpQLSdaQcFaXOcaRyZr520Lxir_NmPKtZG6aojfJ15XBwSbSB9ffQ/viewform)**. It's a short form, no account needed, and I read every one. If you're on GitHub, you can also [open an issue](https://github.com/malbers/eversignal/issues). A screenshot of the Detail pages helps a lot (blur the Device page first).
+Found a bug, have an idea, or tried it on another Eversolo model? Easiest: open **Detail**, swipe to the last page, and scan the QR code with your phone. Or **[tell me here](https://docs.google.com/forms/d/e/1FAIpQLSdaQcFaXOcaRyZr520Lxir_NmPKtZG6aojfJ15XBwSbSB9ffQ/viewform)**. It's a short form, no account needed, and I read every one. If you're on GitHub, you can also [open an issue](https://github.com/malbers/eversignal/issues). A screenshot of the Detail pages helps a lot (blur the Device page first).
 
 ## Building from source
 
