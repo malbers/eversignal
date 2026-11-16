@@ -45,9 +45,13 @@ public final class ScreenView extends View {
     private static final int BG = 0xFF0B0A0A, LIGHT = 0xFFF4F1EC, DARK_TEXT = 0xFF111111, ACCENT = 0xFFD9B48A, TAG_TEXT = 0xFFE8CBA8;
     private static final int GREEN = 0xFF5FD08B, CHIP_GREEN = 0xFF4CC27A, AMBER = 0xFFE7C15A, VIOLET = 0xFFB9A2F0,
         ORANGE = 0xFFEBB085, BLUE = 0xFFA8BEDC;
+    /** Second lines on Simple (strip + tiles): a soft blue so they read apart from the white values. */
+    private static final int SUB = GREEN;
 
     /** Nav (volume · VU · Simple/Detail) sits in the same place on both modes. */
-    private static final float NAV_RIGHT = 888, NAV_Y = 16;
+    private static final float NAV_RIGHT = 888, NAV_Y = 12;
+    /** Top-right controls, enlarged in 1.0.2 so they are easy to hit: height, toggle width, VU width. */
+    private static final float NAV_H = 44, TOG_W = 200, VU_W = 72;
 
     private final Typeface hanken400, hanken500, hanken600, mono400, mono500;
     private final TextPaint tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -108,16 +112,16 @@ public final class ScreenView extends View {
     /** Pill with the label inside; tap runs actions.update(). Width is capped so it can't reach the credit. */
     private void drawUpdate(Canvas c, float x, float y, float maxW, boolean centred) {
         if (update == null) return;
-        float size = 12.5f, padX = 12;
+        float size = 15, padX = 14;
         tp.setTypeface(hanken600);
         tp.setTextSize(size * s);
         while (tp.measureText(update) / s + 2 * padX > maxW && size > 10) { size -= 0.5f; tp.setTextSize(size * s); }
         float w = Math.min(maxW, tp.measureText(update) / s + 2 * padX);
         if (centred) x -= w / 2;
-        roundRect(c, x, y, w, 26, 13, (updateColor & 0x00FFFFFF) | 0x26000000);
+        roundRect(c, x, y, w, 30, 15, (updateColor & 0x00FFFFFF) | 0x26000000);
         tp.setColor(updateColor);
-        c.drawText(TextUtils.ellipsize(update, tp, (w - 2 * padX) * s, TextUtils.TruncateAt.END).toString(), X(x + padX), Y(y + 17.5f), tp);
-        hit(x, y, w, 26, actions::update);
+        c.drawText(TextUtils.ellipsize(update, tp, (w - 2 * padX) * s, TextUtils.TruncateAt.END).toString(), X(x + padX), Y(y + 20.5f), tp);
+        hit(x, y, w, 30, actions::update);
     }
 
     // ================================================================ frame
@@ -168,21 +172,21 @@ public final class ScreenView extends View {
         String msg = sn != null && !sn.online ? "Can't reach the player on port 9529. Retrying…" : "Loading EverSignal Player…";
         drawCentered(c, msg, 0, cy + 40, 900, 30, 18, hanken500, 0xD9FFFFFF);
         drawUpdate(c, 450, cy + 90, 420, true);
-        drawToggle(c, NAV_RIGHT - 128, NAV_Y);
+        drawToggle(c, NAV_RIGHT - TOG_W, NAV_Y);
     }
 
     /** Volume · VU · Simple/Detail, right-aligned at the same spot in both modes. Returns the left edge used. */
     private float drawNav(Canvas c, Track t) {
-        float x = NAV_RIGHT - 128;
+        float x = NAV_RIGHT - TOG_W;
         drawToggle(c, x, NAV_Y);
-        x -= 8 + 40;
-        drawVu(c, x, NAV_Y, 40);
+        x -= 10 + VU_W;
+        drawVu(c, x, NAV_Y, VU_W);
         if (t.volume != null) {
-            float vw = measure(t.volume, 14, mono500);
+            float vw = measure(t.volume, 20, mono500);
             float lockW = t.volumeLocked ? 18 : 0;
             x -= 12 + vw + lockW;
-            text(c, t.volume, x, NAV_Y + 20, 14, mono500, 0xD9FFFFFF, vw + 2);
-            if (t.volumeLocked) drawLock(c, x + vw + 6, NAV_Y + 9, 0xB3FFFFFF);
+            text(c, t.volume, x, NAV_Y + 29, 20, mono500, 0xD9FFFFFF, vw + 2);
+            if (t.volumeLocked) drawLock(c, x + vw + 6, NAV_Y + 15, 0xB3FFFFFF);
         }
         return x;
     }
@@ -191,58 +195,59 @@ public final class ScreenView extends View {
 
     private void drawSimple(Canvas c, Poller.Snapshot sn) {
         Track t = sn.track;
-        final float left = 40, right = 518, w = right - left;
+        // 1.0.2: the stats are the point, so the cover shrinks (340 -> 260) and the left side grows; no text below ~16
+        final float left = 32, right = 598, w = right - left;
+        final float coverX = 628, coverY = 92, coverS = 260;
 
-        drawCover(c, sn.cover, 548, 76, 340, 10, true);
+        drawCover(c, sn.cover, coverX, coverY, coverS, 10, true);
         // credit under the cover, right-aligned with it; tap opens the YouTube channel
         String credit = "made by @malbers";
-        float cw = measure(credit, 12, hanken500);
-        text(c, credit, 888 - cw, 446, 12, hanken500, 0x80FFFFFF, cw + 2);
-        hit(888 - cw - 8, 430, cw + 16, 24, actions::openChannel);
-        // update pill under the cover's left edge, never reaching the credit
-        drawUpdate(c, 548, 427, 888 - cw - 16 - 548, false);
+        float cw = measure(credit, 15, hanken500);
+        text(c, credit, 888 - cw, 448, 15, hanken500, 0x8CFFFFFF, cw + 2);
+        hit(888 - cw - 8, 428, cw + 16, 28, actions::openChannel);
+        // update pill above the credit, as wide as the cover
+        drawUpdate(c, coverX, 392, coverS, false);
         drawNav(c, t);
         String chip = sourceChip(t);
-        drawPill(c, chip.toUpperCase(Locale.US), left, NAV_Y, 11.5f, hanken600, 0x1AFFFFFF, Color.WHITE, 10, 0.12f);
+        drawPill(c, chip.toUpperCase(Locale.US), left, NAV_Y, 14, hanken600, 0x1AFFFFFF, Color.WHITE, 12, 0.12f);
 
         // transport (bottom)
-        float rowY = 402;
-        float progY = 365;
-        drawProgress(c, sn, left, progY, w, 13.5f);
-        float bx = right - 44;
-        drawRoundButton(c, bx, rowY + 6, 44, false, "next"); hit(bx, rowY + 6, 44, 44, actions::next);
-        bx -= 8 + 56;
-        drawRoundButton(c, bx, rowY, 56, true, t.state == 3 ? "pause" : "play"); hit(bx, rowY, 56, 56, actions::playPause);
-        bx -= 8 + 44;
-        drawRoundButton(c, bx, rowY + 6, 44, false, "prev"); hit(bx, rowY + 6, 44, 44, actions::previous);
+        float rowY = 414;
+        float progY = 368;
+        drawProgress(c, sn, left, progY, w, 17);
+        float bx = right - 48;
+        drawRoundButton(c, bx, rowY + 6, 48, false, "next"); hit(bx, rowY + 6, 48, 48, actions::next);
+        bx -= 8 + 58;
+        drawRoundButton(c, bx, rowY + 1, 58, true, t.state == 3 ? "pause" : "play"); hit(bx, rowY + 1, 58, 58, actions::playPause);
+        bx -= 8 + 48;
+        drawRoundButton(c, bx, rowY + 6, 48, false, "prev"); hit(bx, rowY + 6, 48, 48, actions::previous);
         if (t.hasQueue && sn.nextTitle != null) {
-            label(c, "UP NEXT", left, rowY + 18, 10.5f);
-            text(c, sn.nextTitle, left, rowY + 42, 16, hanken500, 0xE0FFFFFF, bx - left - 16);
+            label(c, "UP NEXT", left, rowY + 22, 13);
+            fitText(c, sn.nextTitle, left, rowY + 48, 19, hanken500, 0xE0FFFFFF, bx - left - 16);
         }
 
         // badge (+ MQA if not already the badge) + note + format
-        float badgeY = 323;
+        float badgeY = 326;
         if (t.badge != Track.Badge.NONE) {
-            float bw = drawBadge(c, t.badgeText, badgeColor(t.badge), left, badgeY, 15);
-            float nx = left + bw + 8;
-            hit(left, badgeY, bw, 30, () -> showInfo(t));
-            if (t.mqaOut && t.badge != Track.Badge.MQA) nx += drawBadge(c, "MQA", VIOLET, nx, badgeY, 15) + 8;
+            float bw = drawBadge(c, t.badgeText, badgeColor(t.badge), left, badgeY, 18);
+            float nx = left + bw + 10;
+            hit(left, badgeY, bw, 31, () -> showInfo(t));
+            if (t.mqaOut && t.badge != Track.Badge.MQA) nx += drawBadge(c, "MQA", VIOLET, nx, badgeY, 18) + 10;
             String note = t.badgeNote == null ? "" : t.badgeNote;
             if (t.formatShort != null) note = note.isEmpty() ? t.formatShort : note + " · " + t.formatShort;
             // shrink before cutting: the format at the end must stay readable
-            fitText(c, note, nx + 2, badgeY + 20, 13.5f, mono400, 0xA6FFFFFF, right - nx - 2);
+            fitText(c, note, nx + 2, badgeY + 22, 17, mono400, 0xBFFFFFFF, right - nx - 2);
         }
 
         // stat tiles
-        drawTiles(c, sn, left, 265, w, 50);
+        drawTiles(c, sn, left, 258, w, 60);
         // signal strip
-        drawStrip(c, t, left, 169, w, 88);
+        drawStrip(c, t, left, 150, w, 100);
 
         // titles: one line, shrinking to fit before any ellipsis, so nothing can run into the strip
-        float ty = 56;
-        fitTitle(c, t.title == null ? "" : t.title, left, ty + 31, w);
-        if (t.artist != null) text(c, t.artist, left, ty + 41 + 8 + 18, 22, hanken400, 0xD1FFFFFF, w);
-        if (t.album != null) text(c, t.album, left, ty + 41 + 8 + 26 + 6 + 15, 19, hanken400, 0x94FFFFFF, w);
+        fitTitle(c, t.title == null ? "" : t.title, left, 84, w);
+        if (t.artist != null) fitText(c, t.artist, left, 113, 22, hanken400, 0xD9FFFFFF, w);
+        if (t.album != null) fitText(c, t.album, left, 139, 20, hanken400, 0xA6FFFFFF, w);
     }
 
     /** The top-left chip always names the source: TIDAL, Apple Music, ... or Library for local files. */
@@ -271,10 +276,10 @@ public final class ScreenView extends View {
         String[][] nodes = nodes(t);
         float nx = x + pad;
         for (int i = 0; i < 4; i++) {
-            label(c, nodes[i][0], nx, y + 20, 10.5f);
-            fitText(c, nodes[i][1], nx, y + 42, 19, mono500, Color.WHITE, nodeW);
-            fitText(c, nodes[i][2], nx, y + 60, 13, mono400, 0xA6FFFFFF, nodeW);
-            fitText(c, nodes[i][3], nx, y + 76, 13, mono400, 0xA6FFFFFF, nodeW);
+            label(c, nodes[i][0], nx, y + 21, 13);
+            fitText(c, nodes[i][1], nx, y + 48, 24, mono500, Color.WHITE, nodeW);
+            fitText(c, nodes[i][2], nx, y + 70, 17, mono400, SUB, nodeW);
+            fitText(c, nodes[i][3], nx, y + 90, 17, mono400, SUB, nodeW);
             nx += nodeW;
             if (i < 3) { drawArrow(c, nx + 6, y + 35, 0x52FFFFFF); nx += arrowW; }
         }
@@ -310,7 +315,7 @@ public final class ScreenView extends View {
         // no source line: the top-left chip already names it
         if (quality != null) tiles.add(new String[]{"QUALITY", quality, ""});
         if (t.rateHz != null) tiles.add(new String[]{"RATE / DEPTH", Track.rateText(t.rateHz, t.dsd), t.bits == null ? "" : Math.round(t.bits) + "-bit"});
-        if (sn.exactBps != null) tiles.add(new String[]{"BITRATE", String.format(Locale.US, "%,d", sn.exactBps.longValue()), "bps (file)"});
+        if (sn.exactBps != null) tiles.add(new String[]{"BITRATE", String.format(Locale.US, "%,d", sn.exactBps.longValue()), "bps"});
         else if (t.bitrateBps != null) tiles.add(new String[]{"BITRATE", Track.bpsText(t.bitrateBps), "file average"});
         String size = sn.sizeBytes != null ? sn.sizeBytes : t.fileSize;
         if (size != null) tiles.add(new String[]{"FILE SIZE", size, ""});
@@ -323,9 +328,9 @@ public final class ScreenView extends View {
         float tx = x;
         for (String[] tile : tiles) {
             roundRect(c, tx, y, tw, h, 9, 0x12FFFFFF);
-            label(c, tile[0], tx + 9, y + 15, 10);
-            fitText(c, tile[1], tx + 9, y + 34, 15, mono500, Color.WHITE, tw - 18);
-            fitText(c, tile[2], tx + 9, y + 46, 11.5f, mono400, 0x8CFFFFFF, tw - 18);
+            fitLabel(c, tile[0], tx + 9, y + 17, 13, tw - 18);
+            fitText(c, tile[1], tx + 9, y + 39, 20, mono500, Color.WHITE, tw - 18);
+            fitText(c, tile[2], tx + 9, y + 54, 15, mono400, SUB, tw - 18);
             tx += tw + gap;
         }
     }
@@ -370,15 +375,15 @@ public final class ScreenView extends View {
     }
 
     private void drawInfo(Canvas c) {
-        float w = 600, lh = 21, h = 26 + info.length * lh, x = (900 - w) / 2f, y = (480 - h) / 2f;
+        float w = 820, lh = 28, h = 30 + info.length * lh, x = (900 - w) / 2f, y = (480 - h) / 2f;
         p.reset(); p.setColor(0xB3000000);
         c.drawRect(X(0), Y(0), X(900), Y(480), p);
         roundRect(c, x, y, w, h, 14, 0xFF1B1A19);
         strokeRect(c, x + 0.5f, y + 0.5f, w - 1, h - 1, 14, 0x24FFFFFF, 1);
         for (int i = 0; i < info.length; i++) {
             boolean head = i == 0, last = i == info.length - 1;
-            text(c, info[i], x + 20, y + 26 + i * lh, head ? 15 : 13.5f, head ? hanken600 : hanken400,
-                last ? 0x80FFFFFF : head ? Color.WHITE : 0xD9FFFFFF, w - 40);
+            fitText(c, info[i], x + 24, y + 32 + i * lh, head ? 19 : 17, head ? hanken600 : hanken400,
+                last ? 0x99FFFFFF : head ? Color.WHITE : 0xD9FFFFFF, w - 48);
         }
         hits.add(new Object[]{new RectF(0, 0, getWidth(), getHeight()), (Runnable) () -> { info = null; invalidate(); }});
     }
@@ -415,49 +420,50 @@ public final class ScreenView extends View {
         c.drawRect(X(0), Y(0), X(900), Y(480), p);
 
         float navLeft = drawNav(c, t);
-        float px = navLeft - 12 - 34;
-        drawRoundButton(c, px, NAV_Y - 2, 34, true, t.state == 3 ? "pause" : "play");
-        hit(px, NAV_Y - 2, 34, 34, actions::playPause);
+        float px = navLeft - 12 - NAV_H;
+        drawRoundButton(c, px, NAV_Y, NAV_H, true, t.state == 3 ? "pause" : "play");
+        hit(px, NAV_Y, NAV_H, NAV_H, actions::playPause);
 
-        float hx = 16, hy = 14;
-        drawCover(c, sn.cover, hx, hy + 1, 44, 6, false);
-        text(c, t.title == null ? "" : t.title, hx + 56, hy + 19, 16, hanken600, Color.WHITE, px - hx - 56 - 12);
-        float by = hy + 27, bx = hx + 56;
+        float hx = 16, hy = 10;
+        drawCover(c, sn.cover, hx, hy + 1, 50, 6, false);
+        fitText(c, t.title == null ? "" : t.title, hx + 62, hy + 21, 20, hanken600, Color.WHITE, px - hx - 62 - 12);
+        float by = hy + 31, bx = hx + 62;
         if (t.badge != Track.Badge.NONE) {
-            tp.setTypeface(hanken600); tp.setTextSize(11 * s);
+            tp.setTypeface(hanken600); tp.setTextSize(14 * s);
             float tw = tp.measureText(t.badgeText) / s;
             int col = badgeColor(t.badge);
-            float bw = 6 + 5 + 5 + tw + 8;
-            roundRect(c, bx, by, bw, 16, 8, (col & 0x00FFFFFF) | 0x26000000);
+            float bw = 7 + 6 + 6 + tw + 9;
+            roundRect(c, bx, by, bw, 21, 10.5f, (col & 0x00FFFFFF) | 0x26000000);
             p.reset(); p.setAntiAlias(true); p.setColor(col);
-            c.drawCircle(X(bx + 6 + 2.5f), Y(by + 8), 2.5f * s, p);
+            c.drawCircle(X(bx + 7 + 3), Y(by + 10.5f), 3 * s, p);
             tp.setColor(col);
-            c.drawText(t.badgeText, X(bx + 16), Y(by + 12), tp);
-            hit(bx, by, bw, 16, () -> showInfo(t));
+            c.drawText(t.badgeText, X(bx + 19), Y(by + 15.5f), tp);
+            hit(bx, by, bw, 21, () -> showInfo(t));
             bx += bw + 10;
         }
         long pos = position(sn);
         float frac = t.durationMs > 0 ? Math.min(1f, pos / (float) t.durationMs) : 0;
-        float barW = Math.max(60, Math.min(220, px - bx - 130));
-        roundRect(c, bx, by + 6.5f, barW, 3, 1.5f, 0x24FFFFFF);
-        if (frac > 0) roundRect(c, bx, by + 6.5f, barW * frac, 3, 1.5f, LIGHT);
-        text(c, mss(pos) + " / " + (t.durationMs > 0 ? mss(t.durationMs) : "–"), bx + barW + 10, by + 12, 11, mono400, 0x9EFFFFFF, 110);
+        float barW = Math.max(50, Math.min(200, px - bx - 150));
+        roundRect(c, bx, by + 9, barW, 3, 1.5f, 0x24FFFFFF);
+        if (frac > 0) roundRect(c, bx, by + 9, barW * frac, 3, 1.5f, LIGHT);
+        text(c, mss(pos) + " / " + (t.durationMs > 0 ? mss(t.durationMs) : "–"), bx + barW + 10, by + 15.5f, 14, mono400, 0xB3FFFFFF, 140);
 
         drawDots(c);
         if (page > 0) { drawStatsPage(c, sn); return; }
 
-        float gx = 16, gy = 70, gw = 870, gh = 388, gap = 8;
-        float unit = (gw - 3 * gap) / 4.0f;
-        float c1 = unit * 1.15f, c2 = unit, c3 = unit, c4 = unit * 0.85f;
-        float x1 = gx, x2 = x1 + c1 + gap, x3 = x2 + c2 + gap, x4 = x3 + c3 + gap;
-        float musicH = 262;
-        drawMusic(c, sn, x1, gy, c1, musicH);
-        drawSource(c, t, x1, gy + musicH + gap, c1, gh - musicH - gap);
-        drawSignal(c, t, x2, gy, c2, gh);
-        drawDevice(c, sn.device, x3, gy, c3, gh);
-        float sessH = 268;
-        drawSession(c, sn.session, x4, gy, c4, sessH);
-        drawLink(c, sn, x4, gy + sessH + gap, c4, gh - sessH - gap);
+        // Two columns, zoomed, scrolling. What you check at the rack comes first: Music + Source | Signal path;
+        // then Session + Link | Device further down.
+        beginContent(c);
+        float gap = 8, cw = (contentW() - gap) / 2, xa = 0, xb = cw + gap;
+        float musicH = 27 + 48 + (t.tags.isEmpty() ? 0 : 19) + 9 * 16.5f + 10, sourceH = 118, sessH = 268, linkH = 112, signalH = 388, deviceH = 300;
+        float ya = 0, yb = 0;
+        drawMusic(c, sn, xa, ya, cw, musicH); ya += musicH + gap;
+        drawSource(c, t, xa, ya, cw, sourceH); ya += sourceH + gap;
+        drawSession(c, sn.session, xa, ya, cw, sessH); ya += sessH + gap;
+        drawLink(c, sn, xa, ya, cw, linkH); ya += linkH;
+        drawSignal(c, t, xb, yb, cw, signalH); yb += signalH + gap;
+        drawDevice(c, sn.device, xb, yb, cw, deviceH); yb += deviceH;
+        endContent(c, Math.max(ya, yb));
     }
 
     private float panel(Canvas c, String heading, float x, float y, float w, float h) {
@@ -488,9 +494,8 @@ public final class ScreenView extends View {
         }
         text(c, key, x, y + 12, 11.5f, hanken400, 0x80FFFFFF, w);
         float ly = y + 16.5f;
-        for (String line : wrapLines(v, w - 8, 11.5f)) {      // right-aligned, as many lines as it takes
-            float sw = measure(line, 11.5f, mono400);
-            text(c, line, x + w - sw, ly + 12, 11.5f, mono400, vc, sw + 2);
+        for (String line : wrapLines(v, w - 8, 11.5f)) {      // left-aligned under the label, as many lines as it takes
+            text(c, line.trim(), x + 8, ly + 12, 11.5f, mono400, vc, w - 8);
             ly += 16.5f;
         }
         return ly;
@@ -512,10 +517,10 @@ public final class ScreenView extends View {
         if (!t.tags.isEmpty()) {
             float cx = ix;
             for (String tag : t.tags) {
-                float tw = measure(tag, 9.5f, mono400) + 10;
+                float tw = measure(tag, 10.5f, mono400) + 10;
                 if (cx + tw > ix + iw) break;
                 roundRect(c, cx, ty, tw, 15, 4, 0x24D9B48A);
-                text(c, tag, cx + 5, ty + 11, 9.5f, mono400, TAG_TEXT, tw);
+                text(c, tag, cx + 5, ty + 11.5f, 10.5f, mono400, TAG_TEXT, tw);
                 cx += tw + 4;
             }
             ty += 19;
@@ -590,10 +595,10 @@ public final class ScreenView extends View {
             ry = row1(c, "Storage", d.flash, ix, ry, iw);
             ry = row1(c, "Brightness", d.brightness, ix, ry, iw);
             ry += 6;
-            label(c, "INPUTS", ix, ry + 9, 9.5f);
+            label(c, "INPUTS", ix, ry + 9, 10.5f);
             ry = chips(c, d.inputs, d.inputIndex, ix, ry + 14, iw);
             ry += 6;
-            label(c, "OUTPUTS", ix, ry + 9, 9.5f);
+            label(c, "OUTPUTS", ix, ry + 9, 10.5f);
             chips(c, d.outputs, d.outputIndex, ix, ry + 14, iw);
             float fy = y + h - 9 - 44;
             p.reset(); p.setColor(0x14FFFFFF);
@@ -610,11 +615,11 @@ public final class ScreenView extends View {
         for (int i = 0; i < names.size(); i++) {
             boolean on = i == active;
             String lbl = (on ? "● " : "") + names.get(i);
-            float cw = measure(lbl, 10, mono400) + 12;
+            float cw = measure(lbl, 10.5f, mono400) + 12;
             if (cx + cw > x + w) { cx = x; cy += 19; }
             if (on) roundRect(c, cx, cy, cw, 16, 4, CHIP_GREEN);
             else strokeRect(c, cx + 0.5f, cy + 0.5f, cw - 1, 15, 4, 0x29FFFFFF, 1);
-            text(c, lbl, cx + 6, cy + 11.5f, 10, mono400, on ? 0xFF0B1A10 : 0x99FFFFFF, cw);
+            text(c, lbl, cx + 6, cy + 12, 10.5f, mono400, on ? 0xFF0B1A10 : 0x99FFFFFF, cw);
             cx += cw + 4;
         }
         return cy + 19;
@@ -654,13 +659,13 @@ public final class ScreenView extends View {
             text(c, names[i] + " " + pct, lx + 10, yy + 9, 10.5f, hanken400, 0xBFFFFFFF, iw / 2 - 10);
         }
         float hy = ly + 40;
-        label(c, "HIGHEST TODAY", ix, hy + 9, 9.5f);
+        label(c, "HIGHEST TODAY", ix, hy + 9, 10.5f);
         String top = ss.maxDsdHz > 0 ? Track.dsdName(ss.maxDsdHz) + " · " + Track.rateText(ss.maxDsdHz, true)
             : ss.maxPcmHz > 0 ? "PCM " + Track.rateText(ss.maxPcmHz, false) : "N/A";
         text(c, top, ix, hy + 26, 12, mono500, Color.WHITE, iw);
         if (ss.maxDsdHz > 0 && ss.maxPcmHz > 0) text(c, "PCM " + Track.rateText(ss.maxPcmHz, false), ix, hy + 41, 11, mono400, 0x9EFFFFFF, iw);
         float ry2 = hy + 54;
-        label(c, "BITRATE TODAY", ix, ry2 + 9, 9.5f);
+        label(c, "BITRATE TODAY", ix, ry2 + 9, 10.5f);
         String br = ss.maxBps > 0 ? Track.bpsText(ss.minBps) + " – " + Track.bpsText(ss.maxBps) : "N/A";
         text(c, br, ix, ry2 + 26, 12, mono500, Color.WHITE, iw);
         text(c, "lowest – highest file", ix, ry2 + 40, 10.5f, hanken400, 0x8CFFFFFF, iw);
@@ -717,8 +722,8 @@ public final class ScreenView extends View {
             hit(x - 4, y - 6, d + 8, d + 12, () -> { page = target; invalidate(); });
             x += d + gap;
         }
-        text(c, (page + 1) + " / " + PAGES.length + "  " + PAGES[page], 16, y + 7, 10, hanken500, 0x80FFFFFF, 300);
-        if (page == 0) text(c, "swipe for more →", 900 - 16 - measure("swipe for more →", 10, hanken500), y + 7, 10, hanken500, 0x59FFFFFF, 200);
+        text(c, (page + 1) + " / " + PAGES.length + "  " + PAGES[page], 16, y + 8, 13, hanken500, 0x99FFFFFF, 330);
+        if (page == 0) text(c, "swipe for more →", 900 - 16 - measure("swipe for more →", 13, hanken500), y + 8, 13, hanken500, 0x73FFFFFF, 220);
     }
 
     private void drawStatsPage(Canvas c, Poller.Snapshot sn) {
@@ -729,38 +734,30 @@ public final class ScreenView extends View {
             case 3: sections = devicePage(sn); break;
             default: sections = ioPage(sn);
         }
-        final float top = 70, bottom = 462, gap = 8, fullW = 870, colW = (fullW - 2 * gap) / 3f;
+        // virtual (zoomed) coordinates: 0..contentW() wide, y from the top of the scrolled content
+        final float gap = 8, fullW = contentW(), colW = (fullW - gap) / 2f, viewH = contentH();
         float off = scroll[page];
-        c.save();
-        c.clipRect(X(16), Y(top), X(886), Y(bottom));
+        beginContent(c);
         float fy = 0;
         for (Section sec : sections) {
             if (sec.kind != FULL) continue;
             float h = sectionHeight(sec, fullW);
-            drawSection(c, sec, 16, top + fy - off, fullW, h);
+            drawSection(c, sec, 0, fy, fullW, h);
             fy += h + gap;
         }
-        float[] colY = {fy, fy, fy};
+        float[] colY = {fy, fy};
         int prevCol = -1;
         for (Section sec : sections) {
             if (sec.kind == FULL) continue;
             float h = sectionHeight(sec, colW);
             int col = shortest(colY);
-            if (sec.kind == STICK && prevCol >= 0 && colY[prevCol] + h <= bottom - top) col = prevCol;
-            float x = 16 + col * (colW + gap), y = top + colY[col] - off;
-            if (y + h > top - 20 && y < bottom + 20) drawSection(c, sec, x, y, colW, h);
+            if (sec.kind == STICK && prevCol >= 0 && colY[prevCol] + h <= viewH) col = prevCol;
+            float x = col * (colW + gap), y = colY[col];
+            if (y + h > off - 20 && y < off + viewH + 20) drawSection(c, sec, x, y, colW, h);
             colY[col] += h + gap;
             prevCol = col;
         }
-        c.restore();
-        float content = Math.max(colY[0], Math.max(colY[1], colY[2]));
-        maxScroll = Math.max(0, content - (bottom - top));
-        if (scroll[page] > maxScroll) scroll[page] = maxScroll;
-        if (maxScroll > 0) {
-            float track = bottom - top, barH = Math.max(24, track * track / content);
-            float barY = top + (track - barH) * (scroll[page] / maxScroll);
-            roundRect(c, 889, barY, 3, barH, 1.5f, 0x40FFFFFF);
-        }
+        endContent(c, Math.max(colY[0], colY[1]));
     }
 
     /** The column with the least content so far; ties go to the leftmost (keeps reading order). */
@@ -770,7 +767,7 @@ public final class ScreenView extends View {
         return best;
     }
 
-    private static final float LIST_ROW = 26;
+    private static final float LIST_ROW = 29;
 
     private List<String> wrapLines(String v, float widthDp, float size) {
         List<String> out = new ArrayList<>();
@@ -789,10 +786,10 @@ public final class ScreenView extends View {
         return out;
     }
 
-    private static final float CHIP_H = 30, CHIP_GAP = 4;
+    private static final float CHIP_H = 34, CHIP_GAP = 4;
 
     private float chipW(String[] ch) {
-        float a = measure(ch[0], 10.5f, hanken500), b = ch[1] == null ? 0 : measure(ch[1], 8.5f, mono400);
+        float a = measure(ch[0], 11, hanken500), b = ch[1] == null ? 0 : measure(ch[1], 10, mono400);
         return Math.max(a, b) + 14;
     }
 
@@ -835,7 +832,16 @@ public final class ScreenView extends View {
             }
             ry += 2;
         }
-        for (String line : sec.text) { text(c, line, ix, ry + 11, 11, mono400, 0xEBFFFFFF, iw); ry += 15; }
+        for (String line : sec.text) {
+            int tab = line.indexOf('	');
+            if (tab < 0) { text(c, line, ix, ry + 11, 11, mono400, 0xEBFFFFFF, iw); ry += 15; continue; }
+            // "title · artist" on the left (cut with … if needed), the format right-aligned and dimmer
+            String right = line.substring(tab + 1);
+            float rw = right.isEmpty() ? 0 : measure(right, 11, mono400);
+            text(c, line.substring(0, tab), ix, ry + 11, 11, mono400, 0xEBFFFFFF, iw - rw - (rw > 0 ? 10 : 0));
+            if (rw > 0) text(c, right, ix + iw - rw, ry + 11, 11, mono400, 0x99FFFFFF, rw + 2);
+            ry += 15;
+        }
         for (String[] r : sec.rows) ry = row(c, r[0], r[1], ix, ry, iw);
         if (sec.empty()) text(c, "None reported", ix, ry + 11, 11, mono400, 0x4DFFFFFF, iw);
         if (sec.list) {
@@ -846,7 +852,7 @@ public final class ScreenView extends View {
                 String state = on ? "Yes" : "No";
                 float sw = measure(state, 11, mono500);
                 text(c, ch[0], ix, cy + 11, 11, hanken500, on ? 0xEBFFFFFF : 0x99FFFFFF, iw - sw - 12);
-                if (ch[1] != null) text(c, ch[1], ix, cy + 22, 8.5f, mono400, 0x59FFFFFF, iw - sw - 12);
+                if (ch[1] != null) text(c, ch[1], ix, cy + 24, 10, mono400, 0x73FFFFFF, iw - sw - 12);
                 text(c, state, ix + iw - sw, cy + 15, 11, mono500, on ? GREEN : 0x66FFFFFF, sw + 2);
                 cy += LIST_ROW;
             }
@@ -861,8 +867,8 @@ public final class ScreenView extends View {
                 if (on) roundRect(c, cx, cy, cw, CHIP_H, 5, 0x3D4CC27A);
                 else strokeRect(c, cx + 0.5f, cy + 0.5f, cw - 1, CHIP_H - 1, 5, 0x24FFFFFF, 1);
                 boolean two = ch[1] != null;
-                text(c, ch[0], cx + 7, cy + (two ? 13 : 19), 10.5f, hanken500, on ? GREEN : 0x99FFFFFF, cw);
-                if (two) text(c, ch[1], cx + 7, cy + 25, 8.5f, mono400, on ? 0xA65FD08B : 0x59FFFFFF, cw);
+                text(c, ch[0], cx + 7, cy + (two ? 14 : 21.5f), 11, hanken500, on ? GREEN : 0x99FFFFFF, cw);
+                if (two) text(c, ch[1], cx + 7, cy + 28, 10, mono400, on ? 0xA65FD08B : 0x73FFFFFF, cw);
                 cx += cw + CHIP_GAP;
             }
         }
@@ -986,8 +992,7 @@ public final class ScreenView extends View {
         out.add(q);
         Section next = new Section("Up next", STICK);
         for (String[] n : sn.upNext) {
-            next.text.add(n[0] + (n[1] == null || n[1].isEmpty() ? "" : " · " + n[1]));
-            next.text.add("   " + n[2]);
+            next.text.add(n[0] + (n[1] == null || n[1].isEmpty() ? "" : " · " + n[1]) + "	" + (n[2] == null ? "" : n[2]));
         }
         if (sn.upNext.isEmpty()) next.row("Next", null);
         out.add(next);
@@ -1144,27 +1149,27 @@ public final class ScreenView extends View {
     }
 
     private void drawToggle(Canvas c, float x, float y) {
-        float h = 30, segW = 61;
-        roundRect(c, x, y, 128, h, h / 2, 0x1AFFFFFF);
-        float ax = detail ? x + 3 + segW : x + 3;
-        roundRect(c, ax, y + 3, segW, 24, 12, LIGHT);
-        drawCentered(c, "Simple", x + 3, y + 3, segW, 24, 11.5f, hanken600, detail ? 0xBFFFFFFF : DARK_TEXT);
-        drawCentered(c, "Detail", x + 3 + segW, y + 3, segW, 24, 11.5f, hanken600, detail ? DARK_TEXT : 0xBFFFFFFF);
-        hit(x, y, 128, h, actions::toggleMode);
+        float h = NAV_H, segW = (TOG_W - 8) / 2;
+        roundRect(c, x, y, TOG_W, h, h / 2, 0x1AFFFFFF);
+        float ax = detail ? x + 4 + segW : x + 4;
+        roundRect(c, ax, y + 4, segW, h - 8, (h - 8) / 2, LIGHT);
+        drawCentered(c, "Simple", x + 4, y + 4, segW, h - 8, 18, hanken600, detail ? 0xBFFFFFFF : DARK_TEXT);
+        drawCentered(c, "Detail", x + 4 + segW, y + 4, segW, h - 8, 18, hanken600, detail ? DARK_TEXT : 0xBFFFFFFF);
+        hit(x, y, TOG_W, h, actions::toggleMode);
     }
 
     private void drawVu(Canvas c, float x, float y, float w) {
-        strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, 28.5f, 7, 0x59FFFFFF, 1.5f);
-        drawCentered(c, "VU", x, y, w, 30, 11, mono500, Color.WHITE);
-        hit(x, y, w, 30, actions::vu);
+        strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, NAV_H - 1.5f, 10, 0x59FFFFFF, 1.5f);
+        drawCentered(c, "VU", x, y, w, NAV_H, 18, mono500, Color.WHITE);
+        hit(x, y, w, NAV_H, actions::vu);
     }
 
     private void drawPill(Canvas c, String text, float x, float y, float size, Typeface tf, int bg, int fg, float padX, float tracking) {
         tp.setTypeface(tf); tp.setTextSize(size * s); tp.setLetterSpacing(tracking);
-        float tw = tp.measureText(text) / s;
-        roundRect(c, x, y + 3, tw + 2 * padX, 24, 12, bg);
+        float tw = tp.measureText(text) / s, h = size + 12.5f;
+        roundRect(c, x, y + 3, tw + 2 * padX, h, h / 2, bg);
         tp.setColor(fg);
-        c.drawText(text, X(x + padX), Y(y + 3 + 16), tp);
+        c.drawText(text, X(x + padX), Y(y + 3 + h / 2 + size * 0.35f), tp);
         tp.setLetterSpacing(0);
     }
 
@@ -1206,16 +1211,26 @@ public final class ScreenView extends View {
     }
 
     private void drawToast(Canvas c) {
-        tp.setTypeface(hanken600); tp.setTextSize(13 * s);
+        tp.setTypeface(hanken600); tp.setTextSize(17 * s);
         float tw = tp.measureText(toast) / s;
-        float w = tw + 32, x = (900 - w) / 2f, y = 420;
-        roundRect(c, x, y, w, 34, 10, LIGHT);
+        float w = Math.min(860, tw + 36), x = (900 - w) / 2f, y = 412;
+        roundRect(c, x, y, w, 42, 12, LIGHT);
         tp.setColor(DARK_TEXT);
-        c.drawText(toast, X(x + 16), Y(y + 22), tp);
+        c.drawText(TextUtils.ellipsize(toast, tp, (w - 36) * s, TextUtils.TruncateAt.END).toString(), X(x + 18), Y(y + 27), tp);
+    }
+
+    /** A tracked capitals label that shrinks (to 75%) before it would run past maxW. */
+    private void fitLabel(Canvas c, String text, float x, float baseline, float size, float maxW) {
+        float sz = size;
+        tp.setTypeface(hanken600); tp.setLetterSpacing(0.14f);
+        tp.setTextSize(sz * s);
+        while (tp.measureText(text) > maxW * s && sz > size * 0.75f) { sz -= 0.5f; tp.setTextSize(sz * s); }
+        tp.setLetterSpacing(0);
+        label(c, text, x, baseline, sz);
     }
 
     private void label(Canvas c, String text, float x, float baseline, float size) {
-        tp.setTypeface(hanken600); tp.setTextSize(size * s); tp.setColor(0x7AFFFFFF); tp.setLetterSpacing(0.14f);
+        tp.setTypeface(hanken600); tp.setTextSize(size * s); tp.setColor(ACCENT); tp.setLetterSpacing(0.14f);
         c.drawText(text, X(x), Y(baseline), tp);
         tp.setLetterSpacing(0);
     }
@@ -1260,7 +1275,50 @@ public final class ScreenView extends View {
     }
 
     private void hit(float x, float y, float w, float h, Runnable r) {
-        hits.add(new Object[]{new RectF(X(x), Y(y), X(x + w), Y(y + h)), r});
+        RectF rect = new RectF(X(x), Y(y), X(x + w), Y(y + h));
+        if (hitClip != null) {          // scrolled content: only what is on screen can be tapped
+            if (!rect.intersect(hitClip)) return;
+        }
+        hits.add(new Object[]{rect, r});
+    }
+
+    // ================================================================ Detail zoom (1.0.2: readable at the rack)
+
+    /**
+     * Detail content is drawn 1.4x larger than the design canvas (most text 11.5 -> ~16), in a narrower virtual
+     * area that scrolls. Everything inside uses the normal X()/Y()/measure() helpers; beginContent swaps the scale.
+     */
+    static final float Z = 1.8f;
+    private static final float TOP = 70, BOTTOM = 462;
+    private RectF hitClip;
+    private float savedS, savedOx, savedOy;
+
+    private static float contentW() { return 870 / Z; }
+    private static float contentH() { return (BOTTOM - TOP) / Z; }
+
+    private void beginContent(Canvas c) {
+        c.save();
+        c.clipRect(X(16), Y(TOP), X(886), Y(BOTTOM));
+        hitClip = new RectF(X(16), Y(TOP), X(886), Y(BOTTOM));
+        savedS = s; savedOx = ox; savedOy = oy;
+        float x0 = X(16), y0 = Y(TOP);
+        s = savedS * Z;
+        ox = x0;
+        oy = y0 - scroll[page] * s;
+    }
+
+    /** Restores the normal scale, then sets the scroll range from the content height and draws the scrollbar. */
+    private void endContent(Canvas c, float content) {
+        s = savedS; ox = savedOx; oy = savedOy;
+        hitClip = null;
+        c.restore();
+        maxScroll = Math.max(0, content - contentH());
+        if (scroll[page] > maxScroll) scroll[page] = maxScroll;
+        if (maxScroll > 0) {
+            float track = BOTTOM - TOP, barH = Math.max(24, track * contentH() / content);
+            float barY = TOP + (track - barH) * (scroll[page] / maxScroll);
+            roundRect(c, 889, barY, 3, barH, 1.5f, 0x40FFFFFF);
+        }
     }
 
     @Override public boolean onTouchEvent(MotionEvent e) {
@@ -1270,9 +1328,9 @@ public final class ScreenView extends View {
                 return true;
             case MotionEvent.ACTION_MOVE: {
                 float dx = e.getX() - downX, dy = e.getY() - downY;
-                if (info == null && detail && page > 0 && Math.abs(dy) > 8 * s && Math.abs(dy) > Math.abs(dx)) {
+                if (info == null && detail && Math.abs(dy) > 8 * s && Math.abs(dy) > Math.abs(dx)) {
                     dragging = true;
-                    scroll[page] = Math.max(0, Math.min(maxScroll, downScroll - dy / s));
+                    scroll[page] = Math.max(0, Math.min(maxScroll, downScroll - dy / (s * Z)));
                     invalidate();
                 }
                 return true;

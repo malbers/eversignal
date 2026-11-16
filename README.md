@@ -105,7 +105,7 @@ If one isn't, the badge says which one (Resampled, EQ active, Volume −12 dB). 
 
 ## Download
 
-[**EverSignal-1.0.1.apk**](https://github.com/malbers/eversignal/releases/download/v1.0.1/EverSignal-1.0.1.apk) (from the [v1.0.1 release](https://github.com/malbers/eversignal/releases/tag/v1.0.1))
+[**EverSignal-1.0.2.apk**](https://github.com/malbers/eversignal/releases/download/v1.0.2/EverSignal-1.0.2.apk) (from the [v1.0.2 release](https://github.com/malbers/eversignal/releases/tag/v1.0.2))
 
 Download it to your laptop or desktop, not to the Eversolo. The next section shows how to get it onto the Eversolo.
 
@@ -125,7 +125,7 @@ Download it to your laptop or desktop, not to the Eversolo. The next section sho
 
    ![Eversolo web upload page with the Upload Apk button](docs/install/2-upload-page.jpg)
 
-3. **Send the app.** Click **Select APK File** and choose `EverSignal-1.0.1.apk` from your Downloads folder. It uploads and installs by itself.
+3. **Send the app.** Click **Select APK File** and choose `EverSignal-1.0.2.apk` from your Downloads folder. It uploads and installs by itself.
 
    ![Select APK File](docs/install/3-select-apk.jpg)
 
@@ -138,7 +138,7 @@ Download it to your laptop or desktop, not to the Eversolo. The next section sho
 1. On the same **Transfer** screen, **Method 2** shows a network share address for Windows (starts with `\\`) and Mac (starts with `smb://`).
 2. Open it on your computer: in Windows File Explorer type the `\\` address in the address bar; on a Mac use **Go > Connect to Server** with the `smb://` address (choose **Guest** if asked).
 3. Copy the APK into any folder on the Eversolo, for example `Download` on the SSD.
-4. On the Eversolo, open the **Files** app, go to that folder and tap `EverSignal-1.0.1.apk`. Tap **Install**.
+4. On the Eversolo, open the **Files** app, go to that folder and tap `EverSignal-1.0.2.apk`. Tap **Install**.
 
    ![Install prompt in the Eversolo Files app](docs/install/smb-1-install.jpg)
 
@@ -161,6 +161,12 @@ An APK with a different signer did not come from here.
 From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, tap **Update … · Download** under the cover. It saves the APK to **Download**. Then open **Files › Download**, tap the APK, and choose **Update**. Your settings stay. If you're on 1.0.0, install 1.0.1 by hand once, the same way you installed 1.0.0.
 
 ## What's new
+
+**1.0.2** (15 November 2026)
+- Bigger text, readable standing at the rack: Detail is drawn 1.8x larger in two columns, and every page scrolls (page 1 too).
+- Simple: smaller cover, larger signal path, tiles and badge line; second lines in green, labels in tan.
+- Larger Simple / Detail, VU and volume controls at the top right, easier to hit.
+- Up next shows the format on the same line; long values wrap under their label.
 
 **1.0.1** (15 November 2026)
 - Update check: once a day it asks GitHub for the latest release, and shows an Update pill when a newer one is out. Tap it to download, no browser needed.
