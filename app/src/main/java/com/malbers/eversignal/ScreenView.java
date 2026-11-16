@@ -38,6 +38,7 @@ public final class ScreenView extends View {
         void vu();
         void toggleStay();
         void openChannel();
+        void update();
     }
 
     // design tokens
@@ -98,6 +99,27 @@ public final class ScreenView extends View {
     public void setStayOn(boolean on) { stayOn = on; invalidate(); }
     public void toast(String text) { toast = text; toastUntil = System.currentTimeMillis() + 1600; invalidate(); }
 
+    /** The update pill: null hides it; colour says the state (offer / downloading / saved / failed). */
+    private String update;
+    private int updateColor = GREEN;
+    public void setUpdate(String text, int color) { update = text; updateColor = color; invalidate(); }
+    static final int UPDATE_OFFER = 0xFF5FD08B, UPDATE_BUSY = 0xFFD9B48A, UPDATE_FAILED = 0xFFE8806A;
+
+    /** Pill with the label inside; tap runs actions.update(). Width is capped so it can't reach the credit. */
+    private void drawUpdate(Canvas c, float x, float y, float maxW, boolean centred) {
+        if (update == null) return;
+        float size = 12.5f, padX = 12;
+        tp.setTypeface(hanken600);
+        tp.setTextSize(size * s);
+        while (tp.measureText(update) / s + 2 * padX > maxW && size > 10) { size -= 0.5f; tp.setTextSize(size * s); }
+        float w = Math.min(maxW, tp.measureText(update) / s + 2 * padX);
+        if (centred) x -= w / 2;
+        roundRect(c, x, y, w, 26, 13, (updateColor & 0x00FFFFFF) | 0x26000000);
+        tp.setColor(updateColor);
+        c.drawText(TextUtils.ellipsize(update, tp, (w - 2 * padX) * s, TextUtils.TruncateAt.END).toString(), X(x + padX), Y(y + 17.5f), tp);
+        hit(x, y, w, 26, actions::update);
+    }
+
     // ================================================================ frame
 
     @Override protected void onDraw(Canvas c) {
@@ -145,6 +167,7 @@ public final class ScreenView extends View {
         c.drawCircle(X(cx + 24 * k), Y(cy), 6 * k * s, p);
         String msg = sn != null && !sn.online ? "Can't reach the player on port 9529. Retrying…" : "Loading EverSignal Player…";
         drawCentered(c, msg, 0, cy + 40, 900, 30, 18, hanken500, 0xD9FFFFFF);
+        drawUpdate(c, 450, cy + 90, 420, true);
         drawToggle(c, NAV_RIGHT - 128, NAV_Y);
     }
 
@@ -176,6 +199,8 @@ public final class ScreenView extends View {
         float cw = measure(credit, 12, hanken500);
         text(c, credit, 888 - cw, 446, 12, hanken500, 0x80FFFFFF, cw + 2);
         hit(888 - cw - 8, 430, cw + 16, 24, actions::openChannel);
+        // update pill under the cover's left edge, never reaching the credit
+        drawUpdate(c, 548, 427, 888 - cw - 16 - 548, false);
         drawNav(c, t);
         String chip = sourceChip(t);
         drawPill(c, chip.toUpperCase(Locale.US), left, NAV_Y, 11.5f, hanken600, 0x1AFFFFFF, Color.WHITE, 10, 0.12f);

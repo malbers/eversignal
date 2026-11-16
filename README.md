@@ -77,8 +77,9 @@ If one isn't, the badge says which one (Resampled, EQ active, Volume −12 dB). 
 ## What it never does
 
 - **It never writes.** It reads what the player reports and shows it. It never changes a setting, never writes, moves or deletes a file, and never edits your library or tags. The only things it can tell the player to do are play/pause, next, previous, and switch its screen to the VU meters, and only when you tap them.
-- It keeps two small things in its own private app storage: today's listening totals for the Session panel, and whether Stay in front is on. Nothing on your drives.
-- It only talks to the Eversolo it runs on, through the player's local interface. The one exception is album covers: when a streaming service gives a cover link, the picture loads from that service's own server.
+- It keeps a few small things in its own private app storage: today's listening totals for the Session panel, whether Stay in front is on, and the last update check. Nothing on your drives, unless you tap Update (below).
+- It only talks to the Eversolo it runs on, through the player's local interface. Two exceptions: album covers (when a streaming service gives a cover link, the picture loads from that service's own server), and once a day it asks GitHub whether a newer EverSignal is out. That check sends nothing about you or your music.
+- If a newer version is out, an **Update** pill appears under the cover. Only when you tap it does it save the new APK to the Eversolo's **Download** folder. It never installs anything by itself.
 - No accounts, no analytics, no Google services. Nothing about you or your music is sent anywhere.
 - It never shows the signed part of a streaming link. The **Device** page does show the player's network address, MAC addresses and device ID, because they're useful to you; blur them before you share a screenshot.
 
@@ -135,7 +136,14 @@ Every official release is signed with the same key. If you want to check a copy 
 
 An APK with a different signer did not come from here.
 
+## Updating
+
+From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, tap **Update … · Download** under the cover. It saves the APK to **Download**. Then open **Files › Download**, tap the APK, and choose **Update**. Your settings stay. If you're on 1.0.0, install 1.0.1 by hand once, the same way you installed 1.0.0.
+
 ## What's new
+
+**1.0.1** (15 November 2026)
+- Update check: once a day it asks GitHub for the latest release, and shows an Update pill when a newer one is out. Tap it to download, no browser needed.
 
 **1.0.0** (15 November 2026)
 - First public release: Simple and Detail screens, the bit-perfect verdict, five stats pages, today's listening session, Stay in front.

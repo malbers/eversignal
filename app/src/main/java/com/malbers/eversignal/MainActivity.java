@@ -1,7 +1,9 @@
 package com.malbers.eversignal;
 
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -38,6 +40,93 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         Thread t = new Thread(poller, "poller");
         t.setDaemon(true);
         t.start();
+        showUpdate();
+        checkForUpdate();
+    }
+
+    // ---------------------------------------------------------------- update check
+
+    private static final long DAY_MS = 24L * 60 * 60 * 1000;
+    private static final String USER_AGENT = "EverSignal/" + BuildConfig.VERSION_NAME + " ( https://youtube.com/@malbers )";
+    private long downloadId = -1;
+    private String downloadState; // null, "running", "done", "failed"
+
+    /** At most once a day, ask GitHub for the latest release; the answer is kept for the pill. */
+    private void checkForUpdate() {
+        long now = System.currentTimeMillis();
+        if (now - prefs().getLong("upd_checked", 0) < DAY_MS) return;
+        prefs().edit().putLong("upd_checked", now).apply();
+        Thread t = new Thread(() -> {
+            UpdateCheck.Release r = UpdateCheck.latest(new UpdateCheck.UrlHttp(USER_AGENT));
+            if (r == null) return;
+            prefs().edit().putString("upd_version", r.version).putString("upd_url", r.url).apply();
+            ui.post(this::showUpdate);
+        }, "update-check");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** The newer version on GitHub, or null when this build is current. */
+    private String newerVersion() {
+        String v = prefs().getString("upd_version", null);
+        if (v == null || prefs().getString("upd_url", null) == null) return null;
+        return UpdateCheck.isNewer(v, BuildConfig.VERSION_NAME) ? v : null;
+    }
+
+    private void showUpdate() {
+        String v = newerVersion();
+        if (v == null) { view.setUpdate(null, 0); return; }
+        if ("running".equals(downloadState)) view.setUpdate("Downloading " + v + "…", ScreenView.UPDATE_BUSY);
+        else if ("done".equals(downloadState)) view.setUpdate("Saved · install it from Files › Download", ScreenView.UPDATE_OFFER);
+        else if ("failed".equals(downloadState)) view.setUpdate("Download failed · tap to try again", ScreenView.UPDATE_FAILED);
+        else view.setUpdate("Update " + v + " available · Download", ScreenView.UPDATE_OFFER);
+    }
+
+    /**
+     * Saves the APK to the shared Download folder with Android's own download service, so no browser is needed
+     * (most Eversolos have none). Only ever runs when the pill is tapped. Falls back to a browser if that service is missing.
+     */
+    @Override public void update() {
+        String v = newerVersion();
+        String url = prefs().getString("upd_url", null);
+        if (v == null || url == null) return;
+        if ("running".equals(downloadState)) return;
+        KeepOnTopService.suspended = true;   // the user is about to open Files; don't pull the app back over it
+        if ("done".equals(downloadState)) { view.toast("Open Files › Download and tap EverSignal-" + v + ".apk"); return; }
+        DownloadManager dm = getSystemService(DownloadManager.class);
+        try {
+            DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url))
+                .setTitle("EverSignal " + v)
+                .setMimeType("application/vnd.android.package-archive")
+                .addRequestHeader("User-Agent", USER_AGENT)
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "EverSignal-" + v + ".apk");
+            downloadId = dm.enqueue(req);
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (Exception ignored) {
+                downloadState = "failed";
+                showUpdate();
+            }
+            return;
+        }
+        downloadState = "running";
+        showUpdate();
+        pollDownload(dm);
+    }
+
+    private void pollDownload(DownloadManager dm) {
+        ui.postDelayed(() -> {
+            int status = -1;
+            try (Cursor c = dm.query(new DownloadManager.Query().setFilterById(downloadId))) {
+                if (c != null && c.moveToFirst()) status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            } catch (Exception ignored) { }
+            if (status == DownloadManager.STATUS_SUCCESSFUL) downloadState = "done";
+            else if (status == DownloadManager.STATUS_FAILED || status == -1) downloadState = "failed";
+            else { pollDownload(dm); return; }
+            showUpdate();
+        }, 500);
     }
 
     @Override protected void onResume() {
