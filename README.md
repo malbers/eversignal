@@ -22,7 +22,7 @@ I always wanted to know what my DMP-A6 actually sends to my DAC. Is that TIDAL t
 
 ## What people are saying
 
-From the *EverSolo DMP-A6 User & Friends* group on Facebook, launch day:
+From the Eversolo Facebook groups, launch day:
 
 > "You sir are a clever little cookie"<br>
 > **Martin M.**
@@ -35,6 +35,15 @@ From the *EverSolo DMP-A6 User & Friends* group on Facebook, launch day:
 
 > "Very cool!"<br>
 > **Lou S.**
+
+> "I'm really enjoying this. Thanks!"<br>
+> **Michael K.**
+
+> "by the way, it looks like a great product. Thank you."<br>
+> **David S.**
+
+> "Pretty awesome!"<br>
+> **Weston T.**
 
 ## What you get
 
