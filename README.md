@@ -120,15 +120,15 @@ The badge says **Bit-perfect** only when all of these are true:
 
 - PCM goes out at the source's own sample rate (no resampling)
 - EQ and DSP are off
-- The volume is at 0 dB or locked, because digital volume changes the samples (why Passthrough is recommended, ONLY if you have a DAC or downstream Amplifier that handles the volume downstream)
+- The volume is at 0 dB or locked, because digital volume changes the samples. That's why volume passthrough is recommended, but ONLY if your DAC, preamp or amp controls the volume after the Eversolo. Passthrough sends full volume, so turn your amp down first.
 
-If one isn't "Bit-Perfect", the badge says which one (Resampled, EQ active, Volume −12 dB). What it can't check: the output bit depth (the DMP-A6 never reports it), and anything after the Eversolo's output, like the DAC or amp it feeds.
+If one of these isn't true, the badge says which one (Resampled, EQ active, Volume −12 dB). What it can't check: the output bit depth (the DMP-A6 never reports it), and anything after the Eversolo's output, like the DAC or amp it feeds.
 
 ### The other badges
 
 - **Resampled**: the player changes the sample rate on the way out (for example 44.1 kHz in, 96 kHz out), usually because of an upsampling setting or a fixed output rate.
 - **EQ active / DSP active**: same rate in and out, but EQ or another sound effect is changing the samples.
-- **Volume −12 dB** (or whatever it's set to): everything else is clean, but digital volume below 0 dB changes the samples. Turn on volume passthrough (0 dB) and use your amp's volume.
+- **Volume −12 dB** (or whatever it's set to): everything else is clean, but digital volume below 0 dB changes the samples. Turn on volume passthrough (0 dB) and use your amp's volume, but only if your amp or DAC controls the volume. Turn it down first: passthrough is full volume.
 - **DSD native**: a DSD file goes out as DSD, untouched.
 - **DSD → PCM**: a DSD file is converted to PCM on the way out, often because the output, or what's connected to it, is set to take PCM only. Check that output's DSD setting.
 - **MQA to DAC**: the MQA stream goes to your DAC as is, for the DAC to unfold.
