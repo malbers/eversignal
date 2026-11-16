@@ -154,6 +154,19 @@ Eversolo DMP-A6 (Gen 1), firmware 1.6.15, Android 11, with the library (FLAC, WA
 
 EverSignal is an independent app. It is not made by or affiliated with Eversolo, and it reads the player's undocumented local interface, which a firmware update could change.
 
+## What people are saying
+
+From the *EverSolo DMP-A6 User & Friends* group on Facebook, launch day:
+
+> "You sir are a clever little cookie"<br>
+> **Martin M.**
+
+> "Congrats and Thanks for your APP."<br>
+> **Patricio M.**
+
+> "Nice, thanks!"<br>
+> **Emilio M.**
+
 ## Feedback
 
 Found a bug, have an idea, or tried it on another Eversolo model? **[Tell me here](https://docs.google.com/forms/d/e/1FAIpQLSdaQcFaXOcaRyZr520Lxir_NmPKtZG6aojfJ15XBwSbSB9ffQ/viewform)**. It's a short form, no account needed, and I read every one. If you're on GitHub, you can also [open an issue](https://github.com/malbers/eversignal/issues). A screenshot of the Detail pages helps a lot (blur the Device page first).
