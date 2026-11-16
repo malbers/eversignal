@@ -114,6 +114,19 @@ Each page scrolls. Top and scrolled views:
 
 **Stay in front** (Detail, page 1, bottom right): starting a track from your phone or connecting AirPlay makes the Eversolo jump to its own player screen. With Stay in front on, EverSignal comes back by itself a couple of seconds later. The first time, Android asks you to allow **Display over other apps**; turn it on, go back, and tap Stay in front again. The Back button always turns it off, so the app can never trap the screen.
 
+### What devices does it work on?
+
+EverSignal runs on the Eversolo itself, not on your phone. I built and test it on my DMP-A6 (Gen 1). Owners have confirmed it working on:
+
+- DMP-A6 (Gen 1)
+- DMP-A6 Master Gen 2
+- DMP-A8
+- DMP-T8
+- DMP-T10 (uses the full width of its long screen from 1.0.4)
+- Eversolo Play
+
+It does not run on non-Eversolo Android boxes, and there is no iPhone or Android phone version. Tried it on a model that isn't listed? [Let me know](#feedback), works or not.
+
 ## What "Bit-perfect" means here
 
 The badge says **Bit-perfect** only when all of these are true:
