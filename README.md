@@ -1,3 +1,5 @@
+![EverSignal Simple screen: TIDAL, FLAC 192 kHz / 24-bit, bit-perfect to the USB DAC](docs/screenshots/1-simple.jpg)
+
 # EverSignal: now-playing stats for the Eversolo DMP-A6
 
 **See every bit of your music, from the file to your DAC.** A free, read-only Android app that runs right on your Eversolo DMP-A6 streamer.
@@ -13,8 +15,6 @@ EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole 
 I always wanted to know what my DMP-A6 actually sends to my DAC. Is that TIDAL track really bit-perfect, or is something resampling it on the way? The player knows, it just doesn't show you. I was curious how much I could pull right on the device, and it turned out to be a lot. So I built a free app for it.
 
 > **Made by Michael Albers.** I make honest videos about budget audio equipment, including a lot of Eversolo DMP-A6 how-tos. If you like this app, come find more on my YouTube channel: **[youtube.com/@malbers](https://www.youtube.com/@malbers)**
-
-![EverSignal Simple screen: TIDAL, FLAC 192 kHz / 24-bit, bit-perfect to the USB DAC](docs/screenshots/1-simple.jpg)
 
 | The stock player screen | The same track in EverSignal |
 |---|---|
