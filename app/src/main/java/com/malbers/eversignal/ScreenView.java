@@ -49,7 +49,9 @@ public final class ScreenView extends View {
     private static final int SUB = GREEN;
 
     /** Nav (volume · VU · Simple/Detail) sits in the same place on both modes. */
-    private static final float NAV_RIGHT = 888, NAV_Y = 12;
+    private static final float NAV_Y = 12;
+    /** Right edge of the nav, 12 in from the right of the (possibly wider) canvas. */
+    private float navRight() { return vw - 12; }
     /** Top-right controls, enlarged in 1.0.2 so they are easy to hit: height, toggle width, VU width. */
     private static final float NAV_H = 44, TOG_W = 200, VU_W = 72;
 
@@ -67,6 +69,11 @@ public final class ScreenView extends View {
     private String[] info;           // the badge definition panel, while shown
     private long infoUntil;
     private float s = 1, ox, oy;
+    /**
+     * Virtual canvas width (1.0.4). Height is always 480; width is 900 on the A6 and grows on wider screens
+     * (the T10's 1600 x 600 panel gives 1280), so layouts stretch instead of leaving bands at the sides.
+     */
+    private float vw = 900;
 
     static final String[] PAGES = {"Overview", "Track & file", "Queue & playback", "Device", "Inputs, outputs & volume", "Feedback"};
     /** 1.0.3: the last Detail page is a QR code to the feedback form (the A6 has no browser; a phone does). */
@@ -135,19 +142,20 @@ public final class ScreenView extends View {
         // The A6 already excludes its sidebar from our window (measured on 0.2.0 screenshots, 2026-11-15), so the
         // design's 900 dp content area maps onto the WHOLE view; reserving another 60 dp left a blank strip.
         s = Math.min(w / 900f, h / 480f);
-        ox = (w - 900 * s) / 2f;
+        vw = Math.max(900f, w / s);
+        ox = (w - vw * s) / 2f;
         oy = (h - 480 * s) / 2f;
         hits.clear();
         c.drawColor(BG);
         Poller.Snapshot sn = snap;
         int tint = sn == null ? Color.rgb(42, 38, 34) : sn.tint;
         p.reset();
-        p.setShader(new RadialGradient(X(780), Y(230), 0.62f * 1056 * s, tint, Color.TRANSPARENT, Shader.TileMode.CLAMP));
+        p.setShader(new RadialGradient(X(vw - 120), Y(230), 0.62f * 1056 * s, tint, Color.TRANSPARENT, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, w, h, p);
         p.setShader(null);
 
         c.save();
-        c.clipRect(X(0), Y(0), X(900), Y(480));
+        c.clipRect(X(0), Y(0), X(vw), Y(480));
         if (sn == null || sn.track == null) drawWaiting(c, sn);
         else if (detail) drawDetail(c, sn);
         else drawSimple(c, sn);
@@ -166,7 +174,7 @@ public final class ScreenView extends View {
 
     /** Loading screen: the app's signal-path logo centred, the status line under it. */
     private void drawWaiting(Canvas c, Poller.Snapshot sn) {
-        float cx = 450, cy = 205, k = 1.8f;     // logo = ic_launcher_foreground: 4 nodes on a line, last one green
+        float cx = vw / 2, cy = 205, k = 1.8f;     // logo = ic_launcher_foreground: 4 nodes on a line, last one green
         p.reset(); p.setAntiAlias(true); p.setColor(LIGHT); p.setStrokeWidth(3 * k * s);
         c.drawLine(X(cx - 24 * k), Y(cy), X(cx + 24 * k), Y(cy), p);
         float[] dx = {-24, -8, 8};
@@ -174,23 +182,23 @@ public final class ScreenView extends View {
         p.setColor(GREEN);
         c.drawCircle(X(cx + 24 * k), Y(cy), 6 * k * s, p);
         String msg = sn != null && !sn.online ? "Can't reach the player on port 9529. Retrying…" : "Loading EverSignal Player…";
-        drawCentered(c, msg, 0, cy + 40, 900, 30, 18, hanken500, 0xD9FFFFFF);
-        drawUpdate(c, 450, cy + 90, 420, true);
-        drawToggle(c, NAV_RIGHT - TOG_W, NAV_Y);
+        drawCentered(c, msg, 0, cy + 40, vw, 30, 18, hanken500, 0xD9FFFFFF);
+        drawUpdate(c, vw / 2, cy + 90, 420, true);
+        drawToggle(c, navRight() - TOG_W, NAV_Y);
     }
 
     /** Volume · VU · Simple/Detail, right-aligned at the same spot in both modes. Returns the left edge used. */
     private float drawNav(Canvas c, Track t) {
-        float x = NAV_RIGHT - TOG_W;
+        float x = navRight() - TOG_W;
         drawToggle(c, x, NAV_Y);
         x -= 10 + VU_W;
         drawVu(c, x, NAV_Y, VU_W);
         if (t.volume != null) {
-            float vw = measure(t.volume, 20, mono500);
+            float volW = measure(t.volume, 20, mono500);
             float lockW = t.volumeLocked ? 18 : 0;
-            x -= 12 + vw + lockW;
-            text(c, t.volume, x, NAV_Y + 29, 20, mono500, 0xD9FFFFFF, vw + 2);
-            if (t.volumeLocked) drawLock(c, x + vw + 6, NAV_Y + 15, 0xB3FFFFFF);
+            x -= 12 + volW + lockW;
+            text(c, t.volume, x, NAV_Y + 29, 20, mono500, 0xD9FFFFFF, volW + 2);
+            if (t.volumeLocked) drawLock(c, x + volW + 6, NAV_Y + 15, 0xB3FFFFFF);
         }
         return x;
     }
@@ -200,15 +208,15 @@ public final class ScreenView extends View {
     private void drawSimple(Canvas c, Poller.Snapshot sn) {
         Track t = sn.track;
         // 1.0.2: the stats are the point, so the cover shrinks (340 -> 260) and the left side grows; no text below ~16
-        final float left = 32, right = 598, w = right - left;
-        final float coverX = 628, coverY = 92, coverS = 260;
+        final float left = 32, right = vw - 302, w = right - left;
+        final float coverX = vw - 272, coverY = 92, coverS = 260;
 
         drawCover(c, sn.cover, coverX, coverY, coverS, 10, true);
         // credit under the cover, right-aligned with it; tap opens the YouTube channel
         String credit = "made by @malbers";
         float cw = measure(credit, 15, hanken500);
-        text(c, credit, 888 - cw, 448, 15, hanken500, 0x8CFFFFFF, cw + 2);
-        hit(888 - cw - 8, 428, cw + 16, 28, actions::openChannel);
+        text(c, credit, vw - 12 - cw, 448, 15, hanken500, 0x8CFFFFFF, cw + 2);
+        hit(vw - 12 - cw - 8, 428, cw + 16, 28, actions::openChannel);
         // update pill above the credit, as wide as the cover
         drawUpdate(c, coverX, 392, coverS, false);
         drawNav(c, t);
@@ -379,9 +387,9 @@ public final class ScreenView extends View {
     }
 
     private void drawInfo(Canvas c) {
-        float w = 820, lh = 28, h = 30 + info.length * lh, x = (900 - w) / 2f, y = (480 - h) / 2f;
+        float w = 820, lh = 28, h = 30 + info.length * lh, x = (vw - w) / 2f, y = (480 - h) / 2f;
         p.reset(); p.setColor(0xB3000000);
-        c.drawRect(X(0), Y(0), X(900), Y(480), p);
+        c.drawRect(X(0), Y(0), X(vw), Y(480), p);
         roundRect(c, x, y, w, h, 14, 0xFF1B1A19);
         strokeRect(c, x + 0.5f, y + 0.5f, w - 1, h - 1, 14, 0x24FFFFFF, 1);
         for (int i = 0; i < info.length; i++) {
@@ -421,7 +429,7 @@ public final class ScreenView extends View {
     private void drawDetail(Canvas c, Poller.Snapshot sn) {
         Track t = sn.track;
         p.reset(); p.setColor(0x8C080808);
-        c.drawRect(X(0), Y(0), X(900), Y(480), p);
+        c.drawRect(X(0), Y(0), X(vw), Y(480), p);
 
         float navLeft = drawNav(c, t);
         float px = navLeft - 12 - NAV_H;
@@ -459,14 +467,30 @@ public final class ScreenView extends View {
         // Two columns, zoomed, scrolling. What you check at the rack comes first: Music + Source | Signal path;
         // then Session + Link | Device further down.
         beginContent(c);
-        float gap = 8, cw = (contentW() - gap) / 2, xa = 0, xb = cw + gap;
-        float musicH = 27 + 48 + (t.tags.isEmpty() ? 0 : 19) + 9 * 16.5f + 10, sourceH = 118, sessH = 268, linkH = 112, signalH = 388, deviceH = 300;
+        float musicH = 27 + 48 + (t.tags.isEmpty() ? 0 : 19) + 9 * 16.5f + 10, sourceH = 118, sessH = 268, linkH = 112, signalH = 388;
+        float gap = 8;
+        if (columns() == 3) {
+            // wide screens (T10): Music + Source + Link | Signal path | Session + Device
+            float cw = (contentW() - 2 * gap) / 3, xa = 0, xb = cw + gap, xc = 2 * (cw + gap);
+            float ya = 0, yb = 0, yc = 0;
+            drawMusic(c, sn, xa, ya, cw, musicH); ya += musicH + gap;
+            drawSource(c, t, xa, ya, cw, sourceH); ya += sourceH + gap;
+            drawLink(c, sn, xa, ya, cw, linkH); ya += linkH;
+            drawSignal(c, t, xb, yb, cw, signalH); yb += signalH;
+            drawSession(c, sn.session, xc, yc, cw, sessH); yc += sessH + gap;
+            float deviceH = deviceHeight(sn.device, cw);
+            drawDevice(c, sn.device, xc, yc, cw, deviceH); yc += deviceH;
+            endContent(c, Math.max(ya, Math.max(yb, yc)));
+            return;
+        }
+        float cw = (contentW() - gap) / 2, xa = 0, xb = cw + gap;
         float ya = 0, yb = 0;
         drawMusic(c, sn, xa, ya, cw, musicH); ya += musicH + gap;
         drawSource(c, t, xa, ya, cw, sourceH); ya += sourceH + gap;
         drawSession(c, sn.session, xa, ya, cw, sessH); ya += sessH + gap;
         drawLink(c, sn, xa, ya, cw, linkH); ya += linkH;
         drawSignal(c, t, xb, yb, cw, signalH); yb += signalH + gap;
+        float deviceH = deviceHeight(sn.device, cw);
         drawDevice(c, sn.device, xb, yb, cw, deviceH); yb += deviceH;
         endContent(c, Math.max(ya, yb));
     }
@@ -604,8 +628,9 @@ public final class ScreenView extends View {
             ry = chips(c, d.inputs, d.inputIndex, ix, ry + 14, iw);
             ry += 6;
             label(c, "OUTPUTS", ix, ry + 9, 10.5f);
-            chips(c, d.outputs, d.outputIndex, ix, ry + 14, iw);
-            float fy = y + h - 9 - 44;
+            ry = chips(c, d.outputs, d.outputIndex, ix, ry + 14, iw);
+            // 1.0.4: never above the last chip row (models with more inputs wrapped into the footer)
+            float fy = Math.max(y + h - 9 - 44, ry + 6);
             p.reset(); p.setColor(0x14FFFFFF);
             c.drawRect(X(ix), Y(fy), X(ix + iw), Y(fy + 1), p);
             String active = d.outputIndex >= 0 && d.outputIndex < d.outputs.size() ? d.outputs.get(d.outputIndex) : "Output";
@@ -615,13 +640,38 @@ public final class ScreenView extends View {
         }
     }
 
+    /**
+     * Height the Overview's Device panel needs: 300 on the A6, taller when a model lists more inputs or outputs
+     * than fit on the A6's rows (1.0.4; seen on a model with six inputs). Mirrors drawDevice's layout:
+     * header 27, six rows of 16.5, two chip blocks with their labels, then the "can do" footer.
+     */
+    private float deviceHeight(Poller.Device d, float w) {
+        float iw = w - 22;
+        synchronized (d) {
+            return Math.max(300, 27 + 6 * 16.5f + 6 + 14 + chipsHeight(d.inputs, d.inputIndex, iw)
+                + 6 + 14 + chipsHeight(d.outputs, d.outputIndex, iw) + 6 + 44 + 9);
+        }
+    }
+
+    /** Height of a chip block, wrapped exactly as chips() wraps it. */
+    private float chipsHeight(List<String> names, int active, float w) {
+        float cx = 0, rows = 1;
+        for (int i = 0; i < names.size(); i++) {
+            String lbl = (i == active ? "● " : "") + names.get(i);
+            float cw = measure(lbl, 10.5f, mono400) + 12;
+            if (cx > 0 && cx + cw > w) { cx = 0; rows++; }
+            cx += cw + 4;
+        }
+        return rows * 19;
+    }
+
     private float chips(Canvas c, List<String> names, int active, float x, float y, float w) {
         float cx = x, cy = y;
         for (int i = 0; i < names.size(); i++) {
             boolean on = i == active;
             String lbl = (on ? "● " : "") + names.get(i);
             float cw = measure(lbl, 10.5f, mono400) + 12;
-            if (cx + cw > x + w) { cx = x; cy += 19; }
+            if (cx > x && cx + cw > x + w) { cx = x; cy += 19; }
             if (on) roundRect(c, cx, cy, cw, 16, 4, CHIP_GREEN);
             else strokeRect(c, cx + 0.5f, cy + 0.5f, cw - 1, 15, 4, 0x29FFFFFF, 1);
             text(c, lbl, cx + 6, cy + 12, 10.5f, mono400, on ? 0xFF0B1A10 : 0x99FFFFFF, cw);
@@ -719,7 +769,7 @@ public final class ScreenView extends View {
 
     private void drawDots(Canvas c) {
         float d = 7, gap = 10, total = PAGES.length * d + (PAGES.length - 1) * gap;
-        float x = (900 - total) / 2f, y = 469;
+        float x = (vw - total) / 2f, y = 469;
         for (int i = 0; i < PAGES.length; i++) {
             p.reset(); p.setAntiAlias(true); p.setColor(i == page ? LIGHT : 0x40FFFFFF);
             c.drawCircle(X(x + d / 2), Y(y + d / 2), d / 2 * s, p);
@@ -728,7 +778,7 @@ public final class ScreenView extends View {
             x += d + gap;
         }
         text(c, (page + 1) + " / " + PAGES.length + "  " + PAGES[page], 16, y + 8, 13, hanken500, 0x99FFFFFF, 330);
-        if (page == 0) text(c, "swipe for more →", 900 - 16 - measure("swipe for more →", 13, hanken500), y + 8, 13, hanken500, 0x73FFFFFF, 220);
+        if (page == 0) text(c, "swipe for more →", vw - 16 - measure("swipe for more →", 13, hanken500), y + 8, 13, hanken500, 0x73FFFFFF, 220);
     }
 
     private void drawStatsPage(Canvas c, Poller.Snapshot sn) {
@@ -740,7 +790,8 @@ public final class ScreenView extends View {
             default: sections = ioPage(sn);
         }
         // virtual (zoomed) coordinates: 0..contentW() wide, y from the top of the scrolled content
-        final float gap = 8, fullW = contentW(), colW = (fullW - gap) / 2f, viewH = contentH();
+        final int n = columns();
+        final float gap = 8, fullW = contentW(), colW = (fullW - (n - 1) * gap) / n, viewH = contentH();
         float off = scroll[page];
         beginContent(c);
         float fy = 0;
@@ -750,7 +801,8 @@ public final class ScreenView extends View {
             drawSection(c, sec, 0, fy, fullW, h);
             fy += h + gap;
         }
-        float[] colY = {fy, fy};
+        float[] colY = new float[n];
+        java.util.Arrays.fill(colY, fy);
         int prevCol = -1;
         for (Section sec : sections) {
             if (sec.kind == FULL) continue;
@@ -762,7 +814,9 @@ public final class ScreenView extends View {
             colY[col] += h + gap;
             prevCol = col;
         }
-        endContent(c, Math.max(colY[0], colY[1]));
+        float bottom = 0;
+        for (float y : colY) bottom = Math.max(bottom, y);
+        endContent(c, bottom);
     }
 
     /** The column with the least content so far; ties go to the leftmost (keeps reading order). */
@@ -1220,7 +1274,7 @@ public final class ScreenView extends View {
     private void drawToast(Canvas c) {
         tp.setTypeface(hanken600); tp.setTextSize(17 * s);
         float tw = tp.measureText(toast) / s;
-        float w = Math.min(860, tw + 36), x = (900 - w) / 2f, y = 412;
+        float w = Math.min(vw - 40, tw + 36), x = (vw - w) / 2f, y = 412;
         roundRect(c, x, y, w, 42, 12, LIGHT);
         tp.setColor(DARK_TEXT);
         c.drawText(TextUtils.ellipsize(toast, tp, (w - 36) * s, TextUtils.TruncateAt.END).toString(), X(x + 18), Y(y + 27), tp);
@@ -1278,7 +1332,7 @@ public final class ScreenView extends View {
         text(c, "EverSignal sends nothing. Your phone opens the form, and only if you scan.", lx, 370, 14, hanken400, 0x99FFFFFF, tw);
         text(c, "No account needed. Email is optional.", lx, 394, 14, hanken400, 0x99FFFFFF, tw);
 
-        float box = 300, bx = 886 - 16 - box, by = 96;
+        float box = 300, bx = vw - 14 - 16 - box, by = 96;
         roundRect(c, bx, by, box, box, 14, Color.WHITE);
         Bitmap b = qrBitmap(url);
         if (b != null) {
@@ -1377,13 +1431,15 @@ public final class ScreenView extends View {
     private RectF hitClip;
     private float savedS, savedOx, savedOy;
 
-    private static float contentW() { return 870 / Z; }
+    private float contentW() { return (vw - 30) / Z; }
+    /** Columns on the stats pages: 2 on the A6, 3 once the canvas is wide enough (T10). */
+    private int columns() { return vw >= 1150 ? 3 : 2; }
     private static float contentH() { return (BOTTOM - TOP) / Z; }
 
     private void beginContent(Canvas c) {
         c.save();
-        c.clipRect(X(16), Y(TOP), X(886), Y(BOTTOM));
-        hitClip = new RectF(X(16), Y(TOP), X(886), Y(BOTTOM));
+        c.clipRect(X(16), Y(TOP), X(vw - 14), Y(BOTTOM));
+        hitClip = new RectF(X(16), Y(TOP), X(vw - 14), Y(BOTTOM));
         savedS = s; savedOx = ox; savedOy = oy;
         float x0 = X(16), y0 = Y(TOP);
         s = savedS * Z;
@@ -1401,7 +1457,7 @@ public final class ScreenView extends View {
         if (maxScroll > 0) {
             float track = BOTTOM - TOP, barH = Math.max(24, track * contentH() / content);
             float barY = TOP + (track - barH) * (scroll[page] / maxScroll);
-            roundRect(c, 889, barY, 3, barH, 1.5f, 0x40FFFFFF);
+            roundRect(c, vw - 11, barY, 3, barH, 1.5f, 0x40FFFFFF);
         }
     }
 
@@ -1437,6 +1493,31 @@ public final class ScreenView extends View {
             default: return true;
         }
     }
+
+    /**
+     * 1.0.4: mouse wheel (the A6's PC control in a browser, or a USB mouse). Touch drags never covered it:
+     * a wheel arrives as ACTION_SCROLL, not as a touch. Vertical scrolls the Detail page; horizontal
+     * (Shift + wheel, or a trackpad swipe) changes page, like a swipe.
+     */
+    @Override public boolean onGenericMotionEvent(MotionEvent e) {
+        if (e.getAction() == MotionEvent.ACTION_SCROLL && detail && info == null) {
+            float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL), h = e.getAxisValue(MotionEvent.AXIS_HSCROLL);
+            if (h != 0) {
+                page = (page + (h > 0 ? 1 : PAGES.length - 1)) % PAGES.length;
+                invalidate();
+                return true;
+            }
+            if (v != 0) {
+                scroll[page] = Math.max(0, Math.min(maxScroll, scroll[page] - v * WHEEL_STEP));
+                invalidate();
+                return true;
+            }
+        }
+        return super.onGenericMotionEvent(e);
+    }
+
+    /** Virtual (zoomed) units per wheel notch: about two rows of stats. */
+    private static final float WHEEL_STEP = 36;
 
     @Override public boolean performClick() { return super.performClick(); }
 }

@@ -203,6 +203,11 @@ From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, 
 
 ## What's new
 
+**1.0.4** (16 November 2026)
+- Fits wider screens: on the DMP-T10's long display, EverSignal now uses the full width instead of leaving bands at the sides. Simple stretches the signal path and tiles; Detail shows three columns. The A6 looks the same as before. Thanks to Steve C.-H. for sending his T10's screen size.
+- Fixed: on models that list more inputs (the DMP-A6 Master Gen 2 has six), the Device panel on the first Detail page no longer runs its outputs into the "can do" line. Thanks to René G. C. for the report.
+- Mouse wheel: scroll the Detail pages with a mouse wheel (for example through the Eversolo's PC control in a browser); a sideways scroll changes page.
+
 **1.0.3** (16 November 2026)
 - New **Feedback** page, the last Detail page: scan the QR code with your phone to send a bug, an idea, or "it works on my model". It fills in your model, firmware and EverSignal version for you.
 - The **Device** page now shows the screen size and the area EverSignal gets, to help lay it out on other models (the T10's bigger screen is next).
