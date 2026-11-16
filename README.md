@@ -45,7 +45,13 @@ I always wanted to know what my DMP-A6 actually sends to my DAC. Is that TIDAL t
 
 ## What people are saying
 
-From the Eversolo Facebook groups:
+### Real use: the DSD that wasn't native
+
+Martin M. was playing a DSD file (DSF, 2.8 MHz) to his amp over HDMI and assumed it was going out as native DSD. EverSignal showed otherwise: the badge read **DSD → PCM**, so the player was converting it on the way out. After checking the A6's HDMI DSD setting and a restart, EverSignal showed **DSD64, native**, all the way to the port. In his words: "working now after I did a restart bloody great app I like it."
+
+That's what it's for: the player knows what it's doing to your music, it just doesn't show you.
+
+### From the Eversolo Facebook groups
 
 > "works perfectly on the T10. Bigger screen not fully used, but centred nicely"<br>
 > **Steven C-H.**
@@ -216,13 +222,7 @@ EverSignal is an independent app. It is not made by or affiliated with Eversolo,
 
 ## More from the community
 
-### Real use: the DSD that wasn't native
-
-Martin M. was playing a DSD file (DSF, 2.8 MHz) to his amp over HDMI and assumed it was going out as native DSD. EverSignal showed otherwise: the badge read **DSD → PCM**, so the player was converting it on the way out. After checking the A6's HDMI DSD setting and a restart, EverSignal showed **DSD64, native**, all the way to the port. In his words: "working now after I did a restart bloody great app I like it."
-
-That's what it's for: the player knows what it's doing to your music, it just doesn't show you.
-
-### From the Eversolo Facebook groups
+More from the Eversolo Facebook groups:
 
 > "Fantastico su T8 grazie !!!"<br>
 > **Giuseppe V.**
