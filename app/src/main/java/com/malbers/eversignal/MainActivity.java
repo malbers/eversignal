@@ -77,7 +77,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         String v = newerVersion();
         if (v == null) { view.setUpdate(null, 0); return; }
         if ("running".equals(downloadState)) view.setUpdate("Downloading " + v + "…", ScreenView.UPDATE_BUSY);
-        else if ("done".equals(downloadState)) view.setUpdate("Saved · install it from Files › Download", ScreenView.UPDATE_OFFER);
+        else if ("done".equals(downloadState)) view.setUpdate("Saved · install it from Files › Storage › Download", ScreenView.UPDATE_OFFER);
         else if ("failed".equals(downloadState)) view.setUpdate("Download failed · tap to try again", ScreenView.UPDATE_FAILED);
         else view.setUpdate("Update " + v + " available · Download", ScreenView.UPDATE_OFFER);
     }
@@ -92,7 +92,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         if (v == null || url == null) return;
         if ("running".equals(downloadState)) return;
         KeepOnTopService.suspended = true;   // the user is about to open Files; don't pull the app back over it
-        if ("done".equals(downloadState)) { view.toast("Open Files › Download and tap EverSignal-" + v + ".apk"); return; }
+        if ("done".equals(downloadState)) { view.toast("Open Files › Storage › Download and tap EverSignal-" + v + ".apk"); return; }
         DownloadManager dm = getSystemService(DownloadManager.class);
         try {
             DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url))
@@ -219,6 +219,25 @@ public class MainActivity extends Activity implements ScreenView.Actions {
                 }
             } catch (Exception ignored) { }
         });
+    }
+
+    /**
+     * The Eversolo's EQ app (EQSettingActivity in the player app), where EQ is switched on/off per output.
+     * Measured on the A6 2026-11-16 over adb: it is the only EQ/DSP screen the player lets other apps open;
+     * the stock player's EQ console (EQGeqConsoleActivity) is not exported. Opening it changes no setting.
+     * It reads one extra, "isDSP" (default true = the DSP Config tab); the Functions tab's EQ tile passes false.
+     */
+    static final String EQ_PKG = "com.zidoo.streamer", EQ_ACTIVITY = "com.zidoo.eq.activity.EQSettingActivity";
+
+    @Override public void eq() {
+        KeepOnTopService.suspended = true;   // the player's EQ screen is wanted; don't pull back over it
+        try {
+            startActivity(new Intent().setClassName(EQ_PKG, EQ_ACTIVITY).putExtra("isDSP", false)   // default true = DSP Config
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            KeepOnTopService.suspended = false;
+            view.toast("This player's EQ screen can't be opened from here");
+        }
     }
 
     private void send(String path) {

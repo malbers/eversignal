@@ -36,6 +36,7 @@ public final class ScreenView extends View {
         void next();
         void previous();
         void vu();
+        void eq();
         void toggleStay();
         void openChannel();
         void update();
@@ -53,7 +54,7 @@ public final class ScreenView extends View {
     /** Right edge of the nav, 12 in from the right of the (possibly wider) canvas. */
     private float navRight() { return vw - 12; }
     /** Top-right controls, enlarged in 1.0.2 so they are easy to hit: height, toggle width, VU width. */
-    private static final float NAV_H = 44, TOG_W = 200, VU_W = 72;
+    private static final float NAV_H = 44, TOG_W = 200, VU_W = 72, EQ_W = 72;
 
     private final Typeface hanken400, hanken500, hanken600, mono400, mono500;
     private final TextPaint tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -193,6 +194,8 @@ public final class ScreenView extends View {
         drawToggle(c, x, NAV_Y);
         x -= 10 + VU_W;
         drawVu(c, x, NAV_Y, VU_W);
+        x -= 10 + EQ_W;
+        drawEq(c, x, NAV_Y, EQ_W, t.eq);
         if (t.volume != null) {
             float volW = measure(t.volume, 20, mono500);
             float lockW = t.volumeLocked ? 18 : 0;
@@ -353,6 +356,7 @@ public final class ScreenView extends View {
             case MQA: return VIOLET;
             case BIT_PERFECT: return GREEN;
             case HIRES_STREAM: return BLUE;
+            case PAUSED: return 0xFFA9A39B;
             default: return ORANGE;
         }
     }
@@ -378,16 +382,28 @@ public final class ScreenView extends View {
         invalidate();
     }
 
+    /** Passthrough warning lines in the badge panel. */
+    private static final int WARN_RED = 0xFFFF6B5B;
+
     private void drawInfo(Canvas c) {
-        float w = 820, lh = 28, h = 30 + info.length * lh, x = (vw - w) / 2f, y = (480 - h) / 2f;
+        float w = 820, lh = 28, maxW = w - 48;
+        // 1.0.6: long lines word-wrap (continuations keep the line's indent) instead of shrinking to fit
+        java.util.List<Object[]> rows = new java.util.ArrayList<>();   // {text, size, typeface, colour}
+        for (int i = 0; i < info.length; i++) {
+            boolean head = i == 0, last = i == info.length - 1, warn = BadgeInfo.WARN.equals(info[i]);
+            float size = head ? 19 : 17;
+            Typeface tf = head || warn ? hanken600 : hanken400;
+            int col = warn ? WARN_RED : last ? 0x99FFFFFF : head ? Color.WHITE : 0xD9FFFFFF;
+            for (String r : wrap(info[i], size, tf, maxW)) rows.add(new Object[]{r, size, tf, col});
+        }
+        float h = 30 + rows.size() * lh, x = (vw - w) / 2f, y = Math.max(8, (480 - h) / 2f);
         p.reset(); p.setColor(0xB3000000);
         c.drawRect(X(0), Y(0), X(vw), Y(480), p);
         roundRect(c, x, y, w, h, 14, 0xFF1B1A19);
         strokeRect(c, x + 0.5f, y + 0.5f, w - 1, h - 1, 14, 0x24FFFFFF, 1);
-        for (int i = 0; i < info.length; i++) {
-            boolean head = i == 0, last = i == info.length - 1;
-            fitText(c, info[i], x + 24, y + 32 + i * lh, head ? 19 : 17, head ? hanken600 : hanken400,
-                last ? 0x99FFFFFF : head ? Color.WHITE : 0xD9FFFFFF, w - 48);
+        for (int i = 0; i < rows.size(); i++) {
+            Object[] r = rows.get(i);
+            fitText(c, (String) r[0], x + 24, y + 32 + i * lh, (Float) r[1], (Typeface) r[2], (Integer) r[3], maxW);
         }
         hits.add(new Object[]{new RectF(0, 0, getWidth(), getHeight()), (Runnable) () -> { info = null; invalidate(); }});
     }
@@ -1217,6 +1233,15 @@ public final class ScreenView extends View {
         hit(x, y, w, NAV_H, actions::vu);
     }
 
+    /** 1.0.6: opens the Eversolo's own EQ app (on/off per output lives there). Lit like the "EQ active" badge when on. */
+    private void drawEq(Canvas c, float x, float y, float w, boolean active) {
+        int col = badgeColor(Track.Badge.EQ_ACTIVE);
+        if (active) roundRect(c, x, y, w, NAV_H, 10, (col & 0x00FFFFFF) | 0x26000000);   // same tint as the badge
+        strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, NAV_H - 1.5f, 10, active ? col : 0x59FFFFFF, 1.5f);
+        drawCentered(c, "EQ", x, y, w, NAV_H, 18, mono500, active ? col : Color.WHITE);
+        hit(x, y, w, NAV_H, actions::eq);
+    }
+
     private void drawPill(Canvas c, String text, float x, float y, float size, Typeface tf, int bg, int fg, float padX, float tracking) {
         tp.setTypeface(tf); tp.setTextSize(size * s); tp.setLetterSpacing(tracking);
         float tw = tp.measureText(text) / s, h = size + 12.5f;
@@ -1386,6 +1411,21 @@ public final class ScreenView extends View {
         float tw = tp.measureText(text);
         Paint.FontMetrics fm = tp.getFontMetrics();
         c.drawText(text, X(x) + (w * s - tw) / 2f, Y(y) + (h * s - (fm.descent + fm.ascent)) / 2f, tp);
+    }
+
+    /** Word-wraps one line to maxW; continuation lines repeat the line's leading indent. */
+    private java.util.List<String> wrap(String line, float size, Typeface tf, float maxW) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        int n = 0;
+        while (n < line.length() && line.charAt(n) == ' ') n++;
+        String indent = line.substring(0, n), cur = indent;
+        for (String word : line.substring(n).split(" ")) {
+            String next = cur.equals(indent) ? cur + word : cur + " " + word;
+            if (!cur.equals(indent) && measure(next, size, tf) > maxW) { out.add(cur); cur = indent + word; }
+            else cur = next;
+        }
+        out.add(cur);
+        return out;
     }
 
     private float measure(String text, float size, Typeface tf) {

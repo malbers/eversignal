@@ -23,6 +23,8 @@ final class BadgeInfo {
                 l.add("•  PCM out at the source's own sample rate (no resampling)");
                 l.add("•  EQ off and DSP off");
                 l.add("•  Volume at 0 dB or locked (volume passthrough on)");
+                // passthrough is full output level: never mention it without the warning
+                warn(l);
                 break;
             case RESAMPLED:
                 l.add("Resampled: the player changes the sample rate on the way out.");
@@ -73,6 +75,11 @@ final class BadgeInfo {
                 if (note != null) l.add(note);
                 volumeLine(l, t);
                 break;
+            case PAUSED:
+                l.add("Paused: press play for the signal path.");
+                l.add("While a file is paused, the player reports a stand-in output (PCM 192 kHz),");
+                l.add("so EverSignal waits for playback instead of guessing.");
+                break;
             default:
                 l.add("No verdict yet: the player hasn't reported its output.");
         }
@@ -92,13 +99,22 @@ final class BadgeInfo {
         l.add(!t.eq && !t.dsp ? "•  OK: EQ and DSP off" : "•  Fix: turn " + (t.eq && t.dsp ? "EQ and DSP" : t.eq ? "EQ" : "DSP") + " off");
     }
 
+    /** Drawn in the warning colour by ScreenView.drawInfo (one sentence; the panel wraps it). */
+    static final String WARN = "    WARNING: only if your amp or DAC sets the volume. Turn it down first: passthrough is full volume.";
+
+    /** Passthrough is full output level: every line that mentions it is followed by this warning. */
+    private static void warn(List<String> l) {
+        l.add(WARN);
+    }
+
     private static void volumeLine(List<String> l, Track t) {
         if (t.volumeOk) {
             l.add("•  OK: volume at 0 dB (passthrough)");
+            warn(l);
         } else {
             l.add("•  Fix: turn on volume passthrough (0 dB) and use your amp's volume");
             // passthrough is full output level: never suggest it without the warning
-            l.add("    Only if your amp or DAC sets the volume. Turn it down first: passthrough is full volume.");
+            warn(l);
         }
     }
 }

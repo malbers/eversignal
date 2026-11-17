@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
  */
 public final class Track {
 
-    public enum Badge { DSD_NATIVE, DSD_TO_PCM, MQA, LOSSY, BIT_PERFECT, VOLUME, HIRES_STREAM, RESAMPLED, EQ_ACTIVE, NONE }
+    public enum Badge { DSD_NATIVE, DSD_TO_PCM, MQA, LOSSY, BIT_PERFECT, VOLUME, HIRES_STREAM, RESAMPLED, EQ_ACTIVE, PAUSED, NONE }
 
     /** Volume can't alter the samples: locked (fixed output), at 0 dB, or at its maximum step. */
     public boolean volumeOk = true;

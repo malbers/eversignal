@@ -74,7 +74,7 @@ Big, readable from across the room:
 - **Verdict badge:** Bit-perfect, Resampled, EQ active and more. Tap it to see why.
 - **Stat tiles:** quality, rate, bitrate, file size, input → output.
 - **Source:** TIDAL, Apple Music, Amazon Music, AirPlay, or Library for your own files.
-- **Controls:** play/pause, next, previous, up next, and **VU** for the Eversolo's own meters.
+- **Controls:** play/pause, next, previous, up next, **VU** for the Eversolo's own meters, and **EQ** to open the Eversolo's EQ app (lit like the EQ active badge when EQ is on).
 - **made by @malbers:** opens my YouTube channel.
 
 | MQA from the library, sent to the DAC | EQ on: no longer bit-perfect, and it says so |
@@ -152,7 +152,7 @@ If one of these is not true, the badge says which one (Resampled, EQ active, Vol
 ## What it never does
 
 - **Never writes.** No settings changed, no files written, moved or deleted, no library or tag edits.
-- **Only does what you tap:** play/pause, next, previous, VU meters.
+- **Only does what you tap:** play/pause, next, previous, VU meters, and opening the EQ app. Switching EQ on or off is yours to do, in the Eversolo's own screen.
 - **Stores almost nothing:** today's listening totals, Stay in front, the last update check. All in its own app storage.
 - **Talks only to your Eversolo.** Two exceptions: album covers load from the streaming service, and once a day it asks GitHub if there's a new version. That check sends nothing about you.
 - **Never installs by itself:** tap the **Update** pill and it saves the new APK to **Download**. That's it.
@@ -225,9 +225,16 @@ An APK with a different signer did not come from here.
 
 ## Updating
 
-From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, tap **Update … · Download** under the cover. It saves the APK to **Download**. Then open **Files › Download**, tap the APK, and choose **Update**. Your settings stay. If you're on 1.0.0, install 1.0.1 by hand once, the same way you installed 1.0.0.
+From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, tap **Update … · Download** under the cover. It saves the APK to **Download**. Then open **Files › Storage › Download**, tap the APK, and choose **Update**. Your settings stay. If you're on 1.0.0, install 1.0.1 by hand once, the same way you installed 1.0.0.
 
 ## What's new
+
+**1.0.6** (16 November 2026)
+- New **EQ** button next to VU: one tap opens the Eversolo's EQ screen, where you switch EQ on or off. It lights up like the EQ active badge when EQ is on.
+- Steadier badge: it only changes once the new verdict has held for two seconds, so switching EQ or starting an MQA file no longer flashes through in-between badges.
+- Fixed: pausing a file no longer shows "Resampled". While paused, the Eversolo reports a stand-in output (PCM 192 kHz), so EverSignal keeps showing what the track played at.
+- Passthrough warning: every badge panel that mentions volume passthrough now carries a red WARNING. Passthrough is full volume.
+- Fixed: the update hint now points to Files › Storage › Download.
 
 **1.0.5** (16 November 2026)
 - Tap the badge (Bit-perfect, Resampled, EQ active and the rest) to see what it means on your player right now. When you're not bit-perfect, it shows a live checklist of what to change, volume passthrough first, with a caution to turn your amp down before you do.

@@ -65,6 +65,8 @@ public final class Poller implements Runnable {
     private final Device device = new Device();
     private String lastKey, artRef;
     private int lastState = -1;
+    private final OutputHold hold = new OutputHold();
+    private final VerdictSettle settle = new VerdictSettle();
     private long keyChangedAt, lastSlow, lastPoll;
     private int errors;
     private String nextTitle, fileName, genre, disc, sizeBytes, playingFrom, audioHost;
@@ -103,6 +105,8 @@ public final class Poller implements Runnable {
                 boolean started = changed || (probe.state == 3 && lastState != 3 && lastState != -1);
                 if (started && probe.state == 3) lastStartAt = now;
                 Track t = Track.from(s, now - keyChangedAt >= SETTLE_MS);
+                hold.apply(t, t.state == 3 && now - lastStartAt >= SETTLE_MS && now - keyChangedAt >= SETTLE_MS, now);
+                settle.apply(t, now);   // after the hold: only decides when the badge may change
 
                 if (changed || now - lastSlow > 20_000) {
                     lastSlow = now;

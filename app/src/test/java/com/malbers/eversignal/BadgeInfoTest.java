@@ -18,6 +18,27 @@ public class BadgeInfoTest {
 
     private static String all(List<String> l) { return String.join("\n", l); }
 
+    /** Passthrough is full volume: on EVERY badge panel, any line that mentions it is followed by the warning. */
+    @Test public void everyPassthroughMentionCarriesTheWarning() {
+        int mentions = 0;
+        for (Track.Badge b : Track.Badge.values()) {
+            for (boolean volOk : new boolean[]{true, false}) {
+                Track t = pcm(44100, 96000, true, volOk);
+                t.badge = b;
+                List<String> l = BadgeInfo.lines(t);
+                for (int i = 0; i < l.size(); i++) {
+                    String line = l.get(i);
+                    if (line.toLowerCase().contains("passthrough") && !line.equals(BadgeInfo.WARN)) {
+                        mentions++;
+                        assertTrue(b + " volOk=" + volOk + ": no warning after \"" + line + "\"",
+                            i + 1 < l.size() && l.get(i + 1).equals(BadgeInfo.WARN));
+                    }
+                }
+            }
+        }
+        assertTrue(mentions >= 8);   // guard: the test must actually find the panels it protects
+    }
+
     @Test public void bitPerfectHasNoChecklist() {
         Track t = pcm(192000, 192000, false, true);
         assertEquals(Track.Badge.BIT_PERFECT, t.badge);
@@ -35,7 +56,7 @@ public class BadgeInfoTest {
         int to = l.indexOf("To get Bit-perfect:");
         assertTrue(to > 0);
         assertTrue(l.get(to + 1).contains("volume passthrough"));
-        assertTrue(l.get(to + 2).contains("Turn it down first"));
+        assertEquals(BadgeInfo.WARN, l.get(to + 2));
         assertTrue(l.get(to + 3).startsWith("•  Fix: turn off upsampling"));
         assertTrue(l.get(to + 4).startsWith("•  OK: EQ and DSP off"));
     }
@@ -56,7 +77,7 @@ public class BadgeInfoTest {
         String s = all(BadgeInfo.lines(t));
         assertTrue(s.startsWith("EQ active:"));
         assertTrue(s.contains("•  OK: volume at 0 dB (passthrough)"));
-        assertFalse(s.contains("Turn it down first"));
+        assertTrue(s.contains("Turn it down first"));   // passthrough is never mentioned without the caution
         assertTrue(s.contains("•  Fix: turn EQ off"));
     }
 
