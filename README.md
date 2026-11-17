@@ -70,12 +70,12 @@ That's what it's for: the player knows what it's doing to your music, it just do
 
 Big, readable from across the room:
 
-- **The signal path** in four steps: **Source** (FLAC, 192 kHz, 24-bit) → **Processing** (EQ, DSP, subwoofer) → **Output** (PCM, DSD or MQA, and its rate) → **Port** (XLR/RCA, USB DAC, HDMI, optical/coax).
-- **A verdict badge:** Bit-perfect, Resampled, EQ active, Volume (when digital volume changes the samples), DSD native, DSD → PCM, MQA, Lossy. Tap it for exactly what it checks.
-- **Stat tiles:** quality, sample rate and bit depth, the file's exact bitrate, file size, and which input goes to which output.
-- **The source, always named:** TIDAL, Apple Music, Amazon Music, AirPlay, or Library for your own files.
-- Play/pause, next, previous and up next, plus a **VU** button that switches the Eversolo's own screen to its VU meters.
-- **made by @malbers** under the cover opens my YouTube channel, if you have a browser on the Eversolo.
+- **Signal path:** Source → Processing → Output → Port.
+- **Verdict badge:** Bit-perfect, Resampled, EQ active and more. Tap it to see why.
+- **Stat tiles:** quality, rate, bitrate, file size, input → output.
+- **Source:** TIDAL, Apple Music, Amazon Music, AirPlay, or Library for your own files.
+- **Controls:** play/pause, next, previous, up next, and **VU** for the Eversolo's own meters.
+- **made by @malbers:** opens my YouTube channel.
 
 | MQA from the library, sent to the DAC | EQ on: no longer bit-perfect, and it says so |
 |---|---|
@@ -87,13 +87,13 @@ Tap **Detail**, then swipe left or right through five pages:
 
 | Page | What's on it |
 |---|---|
-| 1. Overview | Music, signal path, device and today's session: hours listened, tracks, how much was hi-res, CD, DSD or lossy, the highest rate and the bitrate range |
-| 2. Track & file | Where it plays from, credits, file details (exact bitrate, uncompressed rate, how much FLAC saved), library data, track flags |
-| 3. Queue & playback | Position in the queue, what's up next with formats, the player's raw playback state and flags |
-| 4. Device | Model, firmware, memory, storage, network, display settings and what the player says it can do |
-| 5. Inputs, outputs & volume | Every input and output, the active output's own settings (filter, DPLL, DSD mode, MQA mode), what the DAC can take, the volume settings |
+| 1. Overview | Music, signal path, device, today's listening session |
+| 2. Track & file | Source, credits, file details, library data |
+| 3. Queue & playback | Queue, up next, playback state |
+| 4. Device | Model, firmware, memory, storage, network |
+| 5. Inputs, outputs & volume | Every input and output, output settings, volume |
 
-Anything the source doesn't report shows as N/A instead of being hidden, so you can see what each source does and doesn't give you.
+Missing info shows as N/A, so you can see what each source reports.
 
 Each page scrolls. Top and scrolled views:
 
@@ -139,25 +139,26 @@ If one of these is not true, the badge says which one (Resampled, EQ active, Vol
 
 ### The other badges
 
-- **Resampled**: the player changes the sample rate on the way out (for example 44.1 kHz in, 96 kHz out), usually because of an upsampling setting or a fixed output rate.
-- **EQ active / DSP active**: same rate in and out, but EQ or another sound effect is changing the samples.
-- **Volume −12 dB** (or whatever it's set to): everything else is clean, but digital volume below 0 dB changes the samples. Turn on volume passthrough (0 dB) and use your amp's volume, but only if your amp or DAC controls the volume. Turn it down first: passthrough is full volume.
-- **DSD native**: a DSD file goes out as DSD, untouched.
-- **DSD → PCM**: a DSD file is converted to PCM on the way out, often because the output, or what's connected to it, is set to take PCM only. Check that output's DSD setting.
-- **MQA to DAC**: the MQA stream goes to your DAC as is, for the DAC to unfold.
-- **MQA unfolded ×2** (or ×4): the player unfolds MQA itself, to two or four times the stream's rate.
-- **Lossy (MP3, AAC, …)**: the source itself is compressed with loss. Nothing further down the chain can bring that back.
-- **Hi-res stream**: the streaming service says it's hi-res, but the player doesn't report what it sends out, so there's no verdict to give.
+- **Resampled:** the rate changes on the way out (say 44.1 kHz in, 96 kHz out). Check upsampling or a fixed output rate.
+- **EQ active / DSP active:** EQ or a sound effect is changing the samples.
+- **Volume −12 dB:** digital volume below 0 dB changes the samples. Fix: volume passthrough (0 dB), only if your amp or DAC has its own volume. **Turn it down first: passthrough is full volume.**
+- **DSD native:** DSD goes out as DSD, untouched.
+- **DSD → PCM:** DSD is converted to PCM. Check that output's DSD setting.
+- **MQA to DAC:** MQA goes to your DAC, for the DAC to unfold.
+- **MQA unfolded ×2 / ×4:** the player unfolds MQA itself.
+- **Lossy (MP3, AAC, …):** the source itself is compressed with loss. Nothing downstream brings it back.
+- **Hi-res stream:** the service says hi-res, but the player doesn't report its output, so no verdict.
 
 ## What it never does
 
-- **It never writes.** It reads what the player reports and shows it. It never changes a setting, never writes, moves or deletes a file, and never edits your library or tags. The only things it can tell the player to do are play/pause, next, previous, and switch its screen to the VU meters, and only when you tap them.
-- It keeps a few small things in its own private app storage: today's listening totals for the Session panel, whether Stay in front is on, and the last update check. Nothing on your drives, unless you tap Update (below).
-- It only talks to the Eversolo it runs on, through the player's local interface. Two exceptions: album covers (when a streaming service gives a cover link, the picture loads from that service's own server), and once a day it asks GitHub whether a newer EverSignal is out. That check sends nothing about you or your music.
-- If a newer version is out, an **Update** pill appears under the cover. Only when you tap it does it save the new APK to the Eversolo's **Download** folder. It never installs anything by itself.
-- The **Feedback** page (the last Detail page) shows a QR code to the feedback form. EverSignal sends nothing: your phone opens the form, and only if you scan it. The code fills in your model, firmware, EverSignal version and screen size, never your network address, MAC or device ID.
-- No accounts, no analytics, no Google services. Nothing about you or your music is sent anywhere.
-- It never shows the signed part of a streaming link. The **Device** page does show the player's network address, MAC addresses and device ID, because they're useful to you; blur them before you share a screenshot.
+- **Never writes.** No settings changed, no files written, moved or deleted, no library or tag edits.
+- **Only does what you tap:** play/pause, next, previous, VU meters.
+- **Stores almost nothing:** today's listening totals, Stay in front, the last update check. All in its own app storage.
+- **Talks only to your Eversolo.** Two exceptions: album covers load from the streaming service, and once a day it asks GitHub if there's a new version. That check sends nothing about you.
+- **Never installs by itself:** tap the **Update** pill and it saves the new APK to **Download**. That's it.
+- **Feedback goes through your phone:** the QR code opens the form on your phone, filled in with model, firmware, version and screen size. Never your network address, MAC or device ID.
+- **No accounts, no analytics, no Google services.**
+- **Blur before you share:** the **Device** page shows your network address, MACs and device ID. Streaming links never show their signed part.
 
 ## Download
 
