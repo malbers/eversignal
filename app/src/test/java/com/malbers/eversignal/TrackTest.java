@@ -22,6 +22,20 @@ public class TrackTest {
         }
     }
 
+    /** Captured 2026-11-17: a FLAC started from the file browser reports type 2, not 1. Its cover must still be asked for. */
+    @Test public void fileBrowserPlayGetsACover() throws Exception {
+        Track t = load("filebrowser-type2");
+        assertEquals("01 Why", t.title);
+        assertNull(t.artUrl);
+        assertEquals("29571", t.artId);
+    }
+
+    @Test public void libraryPlayStillGetsACover() throws Exception {
+        Track t = load("wav192");
+        assertNull(t.artUrl);
+        assertTrue(t.artId != null);
+    }
+
     @Test public void wavIsBitPerfect() throws Exception {
         Track t = load("wav192");
         assertEquals("Ashokan Farewell", t.title);

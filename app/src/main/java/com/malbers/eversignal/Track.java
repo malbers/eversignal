@@ -99,7 +99,9 @@ public final class Track {
             t.quality = Flat.str(s, pm + "streamQuality");
             t.artUrl = firstUrl(Flat.str(s, pm + "albumArtBig"), Flat.str(s, pm + "albumArt"));
             String type = Flat.str(s, pm + "type");
-            if (t.artUrl == null && t.trackId != null && "1".equals(type)) t.artId = t.trackId;
+            // Own files: type 1 = played from the Library, type 2 = played from the file browser (measured
+            // 2026-11-17; covers were missing for file-browser play, reported by an owner). getImage serves both.
+            if (t.artUrl == null && t.trackId != null && ("1".equals(type) || "2".equals(type))) t.artId = t.trackId;
             if (t.service != null) t.playerLabel = "Internal player";
         } else {
             t.title = Flat.str(s, ain + "songName");

@@ -229,6 +229,9 @@ From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, 
 
 ## What's new
 
+**1.0.7** (17 November 2026)
+- Fixed: album covers now show for songs you start from the file browser (folders on your drive), not only from the Library. Thanks to Jaro S. and Giuseppe V. for reporting it.
+
 **1.0.6** (16 November 2026)
 - New **EQ** button next to VU: one tap opens the Eversolo's EQ screen, where you switch EQ on or off. It lights up like the EQ active badge when EQ is on.
 - Steadier badge: it only changes once the new verdict has held for two seconds, so switching EQ or starting an MQA file no longer flashes through in-between badges.
