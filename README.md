@@ -10,6 +10,8 @@ EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole 
 
 **It only reads. It never writes.** No settings changed, no files touched, nothing in your library edited. The only things it ever asks the player to do are the buttons you tap: play/pause, next, previous, and the VU screen.
 
+[![Downloads to date](https://img.shields.io/github/downloads/malbers/eversignal/total?label=downloads%20to%20date&color=2ea043)](https://github.com/malbers/eversignal/releases)
+
 **Contents**
 
 - [Why did I build this?](#why-did-i-build-this)
