@@ -39,7 +39,7 @@ public class TrackTest {
         assertEquals("DSD256 in → DSD256 out", t.badgeNote);
         assertEquals(1.0, t.bits, 0.0);
         assertEquals("11.29 MHz", Track.rateText(t.rateHz, true));
-        assertEquals("Stereo", t.sacdArea);
+        assertEquals("Multichannel", t.sacdArea); // fixture sacdArea = 1
     }
 
     @Test public void mqaFlacUnfoldsTimesEight() throws Exception {

@@ -228,6 +228,10 @@ From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, 
 
 ## What's new
 
+**1.0.5** (16 November 2026)
+- Tap the badge (Bit-perfect, Resampled, EQ active and the rest) to see what it means on your player right now. When you're not bit-perfect, it shows a live checklist of what to change, volume passthrough first, with a caution to turn your amp down before you do.
+- Fixed: SACD area showed Stereo when the Eversolo's Preferred SACD area was set to Multichannel. Thanks to a French DMP-A6 owner for the report through the feedback form.
+
 **1.0.4** (16 November 2026)
 - Fits wider screens: on the DMP-T10's long display, EverSignal now uses the full width instead of leaving bands at the sides. Simple stretches the signal path and tiles; Detail shows three columns. The A6 looks the same as before. Thanks to Steve C.-H. for sending his T10's screen size.
 - Fixed: on models that list more inputs (the DMP-A6 Master Gen 2 has six), the Device panel on the first Detail page no longer runs its outputs into the "can do" line. Thanks to René G. C. for the report.

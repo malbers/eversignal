@@ -372,16 +372,8 @@ public final class ScreenView extends View {
     }
 
     private void showInfo(Track t) {
-        info = new String[]{
-            "Bit-perfect: the DMP-A6 passes the source to its output unchanged.",
-            "Shown when all of these are true:",
-            "•  PCM out at the source's own sample rate (no resampling)",
-            "•  EQ off and DSP off",
-            "•  Volume at 0 dB or locked (digital volume changes the samples)",
-            "Not checked: output bit depth (the A6 never reports it), and anything",
-            "after the A6's output (the DAC or amp it feeds).",
-            "Tap anywhere to close.",
-        };
+        // 1.0.5: explains the badge that was tapped, with a live "to get Bit-perfect" checklist (BadgeInfo)
+        info = BadgeInfo.lines(t).toArray(new String[0]);
         infoUntil = System.currentTimeMillis() + 15000;
         invalidate();
     }

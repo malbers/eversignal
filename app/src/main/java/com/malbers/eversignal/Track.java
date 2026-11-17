@@ -141,7 +141,9 @@ public final class Track {
         t.mute = Flat.yes(s, vol + "isMute");
         t.isDsdOut = Flat.yes(s, vol + "isDsdOut");
         Double area = Flat.num(Flat.str(s, vol + "sacdArea"));
-        t.sacdArea = !t.dsd || area == null ? null : (area.intValue() == 2 ? "Multichannel" : "Stereo");
+        // Preferred SACD area (Settings, HDMI output), measured on the A6 2026-11-16: 0 = Stereo, 1 = Multichannel.
+        t.sacdArea = !t.dsd || area == null ? null
+                : area.intValue() == 1 ? "Multichannel" : area.intValue() == 0 ? "Stereo" : null;
         t.eq = Flat.yes(s, "eqActive");
         t.dsp = Flat.yes(s, "dspActive");
         t.sub = Flat.yes(s, "subActive");
