@@ -55,14 +55,20 @@ That's what it's for: the player knows what it's doing to your music, it just do
 
 ### From the Eversolo Facebook groups
 
+> "Great app! I realized that my HDMI output was no longer in Native DSD because I had left the EQ set to ON. So it was still in PCM!"<br>
+> **Pierre C.**
+
+> "Got it working on my A6. I love all the info it gives!"<br>
+> **Jason M.**
+
+> "Amazing amount of information you have managed to squeeze onto that size display. … A really lovely app, well done."<br>
+> **Steven W.**
+
 > "works perfectly on the T10. Bigger screen not fully used, but centred nicely"<br>
 > **Steven C-H.**
 
 > "A8 here, seems to work perfectly. Great work"<br>
 > **Michael W. S.**
-
-> "I've installed an apk using a USB, but not directly. So straightforward!"<br>
-> **Steve G.**
 
 **[See more comments ↓](#more-from-the-community)**
 
@@ -287,8 +293,26 @@ EverSignal is an independent app. It is not made by or affiliated with Eversolo,
 
 More from the Eversolo Facebook groups:
 
+> "I installed it on my DMP A8 and my eversolo play qorks awesome on both"<br>
+> **Sylvain A.**
+
 > "Fantastico su T8 grazie !!!"<br>
 > **Giuseppe V.**
+
+> "I've installed an apk using a USB, but not directly. So straightforward!"<br>
+> **Steve G.**
+
+> "Great job !! Thanks for that."<br>
+> **Fred F.**
+
+> "Just loaded it.....good info for sure. Thanks"<br>
+> **Stuart G.**
+
+> "Very nice ! thank you"<br>
+> **René G. C.**
+
+> "Amazing, thanks for sharing."<br>
+> **Sérgio P.**
 
 > "Thanks for making this. Works perfect."<br>
 > **Henri S.**
