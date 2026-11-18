@@ -215,39 +215,40 @@ public final class ScreenView extends View {
         final float coverX = vw - 272, coverY = 92, coverS = 260;
 
         drawCover(c, sn.cover, coverX, coverY, coverS, 10, true);
+        // 1.0.9: Up next moved under the cover (it sat left of the play controls and made the centred row look
+        // lopsided, 2026-11-17). Cover column top to bottom: cover (to 352), Up next, update pill, credit.
+        if (t.hasQueue && sn.nextTitle != null) {
+            label(c, "UP NEXT", coverX, 378, 13);
+            fitText(c, sn.nextTitle, coverX, 401, 19, hanken500, 0xE0FFFFFF, coverS);
+        }
+        // update pill above the credit, as wide as the cover
+        drawUpdate(c, coverX, 412, coverS, false);
         // credit under the cover, right-aligned with it; tap opens the YouTube channel
         String credit = "made by @malbers";
         float cw = measure(credit, 15, hanken500);
-        text(c, credit, vw - 12 - cw, 448, 15, hanken500, 0x8CFFFFFF, cw + 2);
-        hit(vw - 12 - cw - 8, 428, cw + 16, 28, actions::openChannel);
-        // update pill above the credit, as wide as the cover
-        drawUpdate(c, coverX, 392, coverS, false);
+        text(c, credit, vw - 12 - cw, 467, 15, hanken500, 0x8CFFFFFF, cw + 2);
+        hit(vw - 12 - cw - 8, 448, cw + 16, 28, actions::openChannel);
         drawNav(c, t);
         String chip = sourceChip(t);
         drawPill(c, chip.toUpperCase(Locale.US), left, NAV_Y, 14, hanken600, 0x1AFFFFFF, Color.WHITE, 12, 0.12f);
 
         // transport (bottom)
-        float rowY = 414;
-        float progY = 368;
+        float rowY = 416;   // 1.0.9: rows spaced out (strip 150, tiles 262, badge 334, progress 378, buttons 416)
+        float progY = 378;
         drawProgress(c, sn, left, progY, w, 17);
-        // 1.0.8: the three buttons are centred under the progress bar (an owner saw them off-centre, 2026-11-17;
-        // they used to sit against the column's right edge). Up next keeps the space to their left.
+        // 1.0.9: the three buttons are centred on the WHOLE screen (an owner saw them off-centre, 2026-11-17). 1.0.8
+        // centred them under the progress bar, which only spans the left column, so they still read left of centre.
+        // The row holds only the buttons now (Up next moved under the cover), so nothing else competes for it.
         final float groupW = 48 + 8 + 58 + 8 + 48;
-        float bx = left + (w - groupW) / 2;
+        float bx = Math.min(vw / 2 - groupW / 2, right - groupW);   // never under the cover column
         drawRoundButton(c, bx, rowY + 6, 48, false, "prev"); hit(bx, rowY + 6, 48, 48, actions::previous);
-        float prevX = bx;
         bx += 48 + 8;
         drawRoundButton(c, bx, rowY + 1, 58, true, t.state == 3 ? "pause" : "play"); hit(bx, rowY + 1, 58, 58, actions::playPause);
         bx += 58 + 8;
         drawRoundButton(c, bx, rowY + 6, 48, false, "next"); hit(bx, rowY + 6, 48, 48, actions::next);
-        bx = prevX;   // Up next measures its room up to the first button
-        if (t.hasQueue && sn.nextTitle != null) {
-            label(c, "UP NEXT", left, rowY + 22, 13);
-            fitText(c, sn.nextTitle, left, rowY + 48, 19, hanken500, 0xE0FFFFFF, bx - left - 16);
-        }
 
         // badge (+ MQA if not already the badge) + note + format
-        float badgeY = 326;
+        float badgeY = 334;
         if (t.badge != Track.Badge.NONE) {
             boolean checking = t.badge == Track.Badge.CHECKING;
             float bw = drawBadge(c, t.badgeText, badgeColor(t.badge), left, badgeY, 18, checking);
@@ -261,7 +262,7 @@ public final class ScreenView extends View {
         }
 
         // stat tiles
-        drawTiles(c, sn, left, 258, w, 60);
+        drawTiles(c, sn, left, 262, w, 60);
         // signal strip
         drawStrip(c, t, left, 150, w, 100);
 
