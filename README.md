@@ -33,7 +33,7 @@ EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole 
 - [Building from source](#building-from-source)
 - [Credits](#credits)
 - [Licence](#licence)
-- [Also from me](#also-from-me)
+- [Other Eversolo Apps I made](#also-from-me)
 
 ## Why did I build this?
 
