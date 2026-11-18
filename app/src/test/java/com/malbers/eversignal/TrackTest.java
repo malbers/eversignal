@@ -22,6 +22,68 @@ public class TrackTest {
         }
     }
 
+    /** Captured 2026-11-17: an ALAC .m4a (24-bit / 96 kHz) was badged "Lossy (M4A)", reported by an owner. */
+    @Test public void alacM4aIsLossless() throws Exception {
+        Track t = load("m4a-alac-24-96");
+        assertEquals("ALAC", t.container);
+        assertFalse(t.lossy);
+        assertTrue(t.badge != Track.Badge.LOSSY);
+    }
+
+    /** The live state says 48 kHz for that 96 kHz file; the queue entry has 96000, and wins for .m4a. */
+    @Test public void alacM4aTakesTheQueueRate() throws Exception {
+        Track t = load("m4a-alac-24-96");
+        assertEquals(48000.0, t.rateHz, 0.1);
+        Map<String, String> q = new java.util.HashMap<>();
+        q.put("title", "01 ALAC 24-96"); q.put("sampleRateNumber", "96000"); q.put("bits", "24");
+        assertTrue(t.applyQueueFile(q, true));
+        assertEquals(96000.0, t.rateHz, 0.1);
+        assertEquals(Track.Badge.BIT_PERFECT, t.badge);   // PCM 96 kHz out, EQ off, 0 dB
+    }
+
+    /** Seen 2026-11-17: the queue titled the file by its tag, the state by its file name; the id (32592) is the same. */
+    @Test public void queueEntryMatchesByIdWhenTitlesDiffer() throws Exception {
+        Track t = load("m4a-alac-24-96");
+        Map<String, String> q = new java.util.HashMap<>();
+        q.put("id", "32592"); q.put("title", "EverSignal test ALAC 24-96"); q.put("sampleRateNumber", "96000"); q.put("bits", "24");
+        assertTrue(t.applyQueueFile(q, true));
+        assertEquals(96000.0, t.rateHz, 0.1);
+        assertEquals(Track.Badge.BIT_PERFECT, t.badge);
+    }
+
+    /** Seen 2026-11-17, started from the file browser: same title, but the queue's id is 735278916, the state's 32592. */
+    @Test public void queueEntryMatchesByTitleWhenIdsDiffer() throws Exception {
+        Track t = load("m4a-alac-24-96");
+        Map<String, String> q = new java.util.HashMap<>();
+        q.put("id", "735278916"); q.put("title", "01 ALAC 24-96"); q.put("sampleRateNumber", "96000"); q.put("bits", "24");
+        assertTrue(t.applyQueueFile(q, true));
+        assertEquals(96000.0, t.rateHz, 0.1);
+        assertEquals(Track.Badge.BIT_PERFECT, t.badge);
+    }
+
+    @Test public void queueEntryWithNeitherIdNorTitleIsIgnored() throws Exception {
+        Track t = load("m4a-alac-24-96");
+        Map<String, String> q = new java.util.HashMap<>();
+        q.put("id", "653374469"); q.put("title", "02 AAC 256k"); q.put("sampleRateNumber", "44100");
+        assertFalse(t.applyQueueFile(q, true));
+        assertEquals(48000.0, t.rateHz, 0.1);
+    }
+
+    @Test public void queueEntryForAnotherSongIsIgnored() throws Exception {
+        Track t = load("m4a-alac-24-96");
+        Map<String, String> q = new java.util.HashMap<>();
+        q.put("title", "02 AAC 256k"); q.put("sampleRateNumber", "44100");
+        assertFalse(t.applyQueueFile(q, true));
+        assertEquals(48000.0, t.rateHz, 0.1);
+    }
+
+    @Test public void aacM4aStaysLossy() throws Exception {
+        Track t = load("m4a-aac-256");
+        assertEquals("AAC", t.container);
+        assertTrue(t.lossy);
+        assertEquals(Track.Badge.LOSSY, t.badge);
+    }
+
     /** Captured 2026-11-17: a FLAC started from the file browser reports type 2, not 1. Its cover must still be asked for. */
     @Test public void fileBrowserPlayGetsACover() throws Exception {
         Track t = load("filebrowser-type2");

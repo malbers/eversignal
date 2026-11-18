@@ -27,7 +27,8 @@ final class VerdictSettle {
         boolean alreadyShown = t.badge == shown && eq(t.badgeText, shownText);
         if (alreadyShown || now - pendingSince >= need) { show(t); return t; }
 
-        if (shown == null || shown == Track.Badge.PAUSED) { t.badge = Track.Badge.NONE; t.badgeText = ""; t.badgeNote = ""; t.mqaOut = false; }
+        // 1.0.8: the wait shows a grey "Checking…" pill (pulsing dot) instead of a blank, so it never looks broken
+        if (shown == null || shown == Track.Badge.PAUSED) { t.badge = Track.Badge.CHECKING; t.badgeText = "Checking…"; t.badgeNote = ""; t.mqaOut = false; }
         else { t.badge = shown; t.badgeText = shownText; t.badgeNote = shownNote; t.mqaOut = shownMqa; }
         return t;
     }

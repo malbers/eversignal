@@ -231,6 +231,12 @@ From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, 
 
 ## What's new
 
+**1.0.8** (17 November 2026)
+- Fixed: ALAC (Apple Lossless) .m4a files no longer show as Lossy. EverSignal now tells ALAC from AAC inside an .m4a, and shows the true rate for hi-res ALAC (the player reports a 96 kHz ALAC file as 48 kHz in one place). Thanks to Nic S. for reporting it.
+- While a new track settles, the badge shows a grey "Checking…" instead of a blank.
+- The play controls sit centred under the progress bar. Thanks to Bruce M.
+- The Bitrate tile reads in kbps / Mbps.
+
 **1.0.7** (17 November 2026)
 - Fixed: album covers now show for songs you start from the file browser (folders on your drive), not only from the Library. Thanks to Jaro S. and Giuseppe V. for reporting it.
 

@@ -15,9 +15,9 @@ public class VerdictSettleTest {
 
     @Test public void noBadgeUntilTheFirstVerdictIsSteady() {
         VerdictSettle v = new VerdictSettle();
-        assertEquals(Track.Badge.NONE, v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 0).badge);      // MQA not detected yet
-        assertEquals(Track.Badge.NONE, v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 1000).badge);
-        assertEquals(Track.Badge.NONE, v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 3000).badge);      // steady 2 s, need 3
+        assertEquals(Track.Badge.CHECKING, v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 0).badge);      // MQA not detected yet
+        assertEquals(Track.Badge.CHECKING, v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 1000).badge);
+        assertEquals(Track.Badge.CHECKING, v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 3000).badge);      // steady 2 s, need 3
         assertEquals(Track.Badge.MQA, v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 4000).badge);       // steady 3 s
     }
 
@@ -46,9 +46,9 @@ public class VerdictSettleTest {
         Track p = t(Track.Badge.PAUSED, "Paused");
         p.state = 4;
         v.apply(p, 0);
-        assertEquals(Track.Badge.NONE, v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 1000).badge);    // playing: no "Paused"
-        assertEquals(Track.Badge.NONE, v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 3000).badge);    // 2 s: not yet
-        assertEquals(Track.Badge.NONE, v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 3500).badge);        // detected
+        assertEquals(Track.Badge.CHECKING, v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 1000).badge);    // playing: no "Paused"
+        assertEquals(Track.Badge.CHECKING, v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 3000).badge);    // 2 s: not yet
+        assertEquals(Track.Badge.CHECKING, v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 3500).badge);        // detected
         assertEquals(Track.Badge.MQA, v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 6500).badge);
     }
 
@@ -58,6 +58,6 @@ public class VerdictSettleTest {
         v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 3000);
         Track other = t(Track.Badge.RESAMPLED, "Resampled");
         other.key = "own|2|Other|Someone";
-        assertEquals(Track.Badge.NONE, v.apply(other, 3500).badge);
+        assertEquals(Track.Badge.CHECKING, v.apply(other, 3500).badge);
     }
 }

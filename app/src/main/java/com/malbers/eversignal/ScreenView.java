@@ -230,12 +230,17 @@ public final class ScreenView extends View {
         float rowY = 414;
         float progY = 368;
         drawProgress(c, sn, left, progY, w, 17);
-        float bx = right - 48;
-        drawRoundButton(c, bx, rowY + 6, 48, false, "next"); hit(bx, rowY + 6, 48, 48, actions::next);
-        bx -= 8 + 58;
-        drawRoundButton(c, bx, rowY + 1, 58, true, t.state == 3 ? "pause" : "play"); hit(bx, rowY + 1, 58, 58, actions::playPause);
-        bx -= 8 + 48;
+        // 1.0.8: the three buttons are centred under the progress bar (an owner saw them off-centre, 2026-11-17;
+        // they used to sit against the column's right edge). Up next keeps the space to their left.
+        final float groupW = 48 + 8 + 58 + 8 + 48;
+        float bx = left + (w - groupW) / 2;
         drawRoundButton(c, bx, rowY + 6, 48, false, "prev"); hit(bx, rowY + 6, 48, 48, actions::previous);
+        float prevX = bx;
+        bx += 48 + 8;
+        drawRoundButton(c, bx, rowY + 1, 58, true, t.state == 3 ? "pause" : "play"); hit(bx, rowY + 1, 58, 58, actions::playPause);
+        bx += 58 + 8;
+        drawRoundButton(c, bx, rowY + 6, 48, false, "next"); hit(bx, rowY + 6, 48, 48, actions::next);
+        bx = prevX;   // Up next measures its room up to the first button
         if (t.hasQueue && sn.nextTitle != null) {
             label(c, "UP NEXT", left, rowY + 22, 13);
             fitText(c, sn.nextTitle, left, rowY + 48, 19, hanken500, 0xE0FFFFFF, bx - left - 16);
@@ -244,9 +249,10 @@ public final class ScreenView extends View {
         // badge (+ MQA if not already the badge) + note + format
         float badgeY = 326;
         if (t.badge != Track.Badge.NONE) {
-            float bw = drawBadge(c, t.badgeText, badgeColor(t.badge), left, badgeY, 18);
+            boolean checking = t.badge == Track.Badge.CHECKING;
+            float bw = drawBadge(c, t.badgeText, badgeColor(t.badge), left, badgeY, 18, checking);
             float nx = left + bw + 10;
-            hit(left, badgeY, bw, 31, () -> showInfo(t));
+            if (!checking) hit(left, badgeY, bw, 31, () -> showInfo(t));
             if (t.mqaOut && t.badge != Track.Badge.MQA) nx += drawBadge(c, "MQA", VIOLET, nx, badgeY, 18) + 10;
             String note = t.badgeNote == null ? "" : t.badgeNote;
             if (t.formatShort != null) note = note.isEmpty() ? t.formatShort : note + " · " + t.formatShort;
@@ -330,7 +336,8 @@ public final class ScreenView extends View {
         // no source line: the top-left chip already names it
         if (quality != null) tiles.add(new String[]{"QUALITY", quality, ""});
         if (t.rateHz != null) tiles.add(new String[]{"RATE / DEPTH", Track.rateText(t.rateHz, t.dsd), t.bits == null ? "" : Math.round(t.bits) + "-bit"});
-        if (sn.exactBps != null) tiles.add(new String[]{"BITRATE", String.format(Locale.US, "%,d", sn.exactBps.longValue()), "bps"});
+        // 1.0.8: same units as the file-average line ("1.75 Mbps", not "1,748,591 bps"), seen side by side 2026-11-17
+        if (sn.exactBps != null) tiles.add(new String[]{"BITRATE", Track.bpsText(sn.exactBps), "file average"});
         else if (t.bitrateBps != null) tiles.add(new String[]{"BITRATE", Track.bpsText(t.bitrateBps), "file average"});
         String size = sn.sizeBytes != null ? sn.sizeBytes : t.fileSize;
         if (size != null) tiles.add(new String[]{"FILE SIZE", size, ""});
@@ -356,19 +363,31 @@ public final class ScreenView extends View {
             case MQA: return VIOLET;
             case BIT_PERFECT: return GREEN;
             case HIRES_STREAM: return BLUE;
-            case PAUSED: return 0xFFA9A39B;
+            case PAUSED: case CHECKING: return 0xFFA9A39B;
             default: return ORANGE;
         }
     }
 
     /** Draws one badge pill; returns its width. */
     private float drawBadge(Canvas c, String text, int col, float x, float y, float size) {
+        return drawBadge(c, text, col, x, y, size, false);
+    }
+
+    /** 1.0.8: alpha of the "Checking…" dot, breathing once a second; keeps the view redrawing while it shows. */
+    private int pulse(int col) {
+        double ph = (System.currentTimeMillis() % 1200) / 1200.0;
+        int a = (int) (90 + 165 * (0.5 + 0.5 * Math.cos(ph * 2 * Math.PI)));
+        postInvalidateDelayed(50);
+        return (col & 0x00FFFFFF) | (a << 24);
+    }
+
+    private float drawBadge(Canvas c, String text, int col, float x, float y, float size, boolean pulseDot) {
         tp.setTypeface(hanken600);
         tp.setTextSize(size * s);
         float tw = tp.measureText(text) / s;
         float bw = 10 + 7 + 7 + tw + 12, bh = size + 13;
         roundRect(c, x, y, bw, bh, bh / 2, (col & 0x00FFFFFF) | 0x26000000);
-        p.reset(); p.setAntiAlias(true); p.setColor(col);
+        p.reset(); p.setAntiAlias(true); p.setColor(pulseDot ? pulse(col) : col);
         c.drawCircle(X(x + 10 + 3.5f), Y(y + bh / 2), 3.5f * s, p);
         tp.setColor(col);
         c.drawText(text, X(x + 10 + 7 + 7), Y(y + bh / 2 + size * 0.35f), tp);
@@ -454,11 +473,12 @@ public final class ScreenView extends View {
             int col = badgeColor(t.badge);
             float bw = 7 + 6 + 6 + tw + 9;
             roundRect(c, bx, by, bw, 21, 10.5f, (col & 0x00FFFFFF) | 0x26000000);
-            p.reset(); p.setAntiAlias(true); p.setColor(col);
+            boolean checking = t.badge == Track.Badge.CHECKING;
+            p.reset(); p.setAntiAlias(true); p.setColor(checking ? pulse(col) : col);
             c.drawCircle(X(bx + 7 + 3), Y(by + 10.5f), 3 * s, p);
             tp.setColor(col);
             c.drawText(t.badgeText, X(bx + 19), Y(by + 15.5f), tp);
-            hit(bx, by, bw, 21, () -> showInfo(t));
+            if (!checking) hit(bx, by, bw, 21, () -> showInfo(t));
             bx += bw + 10;
         }
         long pos = position(sn);

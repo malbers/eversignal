@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
  */
 public final class Track {
 
-    public enum Badge { DSD_NATIVE, DSD_TO_PCM, MQA, LOSSY, BIT_PERFECT, VOLUME, HIRES_STREAM, RESAMPLED, EQ_ACTIVE, PAUSED, NONE }
+    public enum Badge { DSD_NATIVE, DSD_TO_PCM, MQA, LOSSY, BIT_PERFECT, VOLUME, HIRES_STREAM, RESAMPLED, EQ_ACTIVE, PAUSED, CHECKING, NONE }
 
     /** Volume can't alter the samples: locked (fixed output), at 0 dB, or at its maximum step. */
     public boolean volumeOk = true;
@@ -43,7 +43,7 @@ public final class Track {
     // signal
     public String container, codec, bitrate;
     public Double rateHz, bits, channels;
-    public boolean dsd, lossy;
+    public boolean dsd, lossy, m4a;
     public String outCodec;
     public Double outRateHz;
     public String iface, ifaceRaw;
@@ -126,6 +126,16 @@ public final class Track {
         String c = (t.container == null ? "" : t.container) + " " + (t.codec == null ? "" : t.codec);
         t.dsd = c.matches("(?is).*\\b(dsf|dff|dsd|iso)\\b.*") || c.toUpperCase(Locale.US).contains("DSD");
         t.lossy = t.container != null && LOSSY.matcher(t.container).matches();
+        // 1.0.8: .m4a holds ALAC (lossless) or AAC (lossy), and the player names neither (no codec field; its
+        // isLossless flag is false even for ALAC). Measured 2026-11-17 on the A6: ALAC 24/96 reports bits 24 and
+        // 1.75 Mbps, AAC 256k reports bits 16 and 188 kbps. AAC tops out near 320 kbps, so 24-bit or >= 400 kbps = ALAC.
+        if ("M4A".equals(t.container) || "MP4".equals(t.container)) {
+            Double b = bps(t.bitrate);
+            boolean alac = (t.bits != null && t.bits >= 24) || (b != null && b >= 400_000);
+            t.container = alac ? "ALAC" : "AAC";
+            t.lossy = !alac;
+            t.m4a = true;
+        }
         if (t.dsd && t.bits == null) t.bits = 1.0;
         if (t.lossy) t.bits = null; // MP3 reports 0; never show "0 bit"
 
@@ -156,12 +166,39 @@ public final class Track {
         t.volumeOk = t.volumeLocked || (db != null && Math.abs(db) < 0.01) || (db == null && cur != null && max != null && cur >= max);
 
         t.bitrateBps = bps(t.bitrate);
-        // compact so the whole badge sentence fits on one line : "24bit/192kHz", "DSD256/11.29MHz"
-        if (t.dsd) t.formatShort = dsdName(t.rateHz) + (t.rateHz == null ? "" : "/" + rateCompact(t.rateHz));
-        else if (t.rateHz != null) t.formatShort = (t.bits == null ? "" : Math.round(t.bits) + "bit/") + rateCompact(t.rateHz);
+        t.formatShort();
 
         t.computeBadge(outputSettled);
         return t;
+    }
+
+    // compact so the whole badge sentence fits on one line : "24bit/192kHz", "DSD256/11.29MHz"
+    private void formatShort() {
+        if (dsd) formatShort = dsdName(rateHz) + (rateHz == null ? "" : "/" + rateCompact(rateHz));
+        else if (rateHz != null) formatShort = (bits == null ? "" : Math.round(bits) + "bit/") + rateCompact(rateHz);
+    }
+
+    /**
+     * 1.0.8: for a hi-res ALAC .m4a the live state reports the wrong source rate (a 96 kHz file shows 48 kHz,
+     * measured 2026-11-17), while the queue entry for the same file has the true rate (96000). So for .m4a only,
+     * the queue entry's rate and bit depth win. Returns true when it changed anything (badge recomputed).
+     */
+    boolean applyQueueFile(Map<String, String> q, boolean settled) {
+        if (!m4a || q == null) return false;
+        // Same track if the id OR the title matches (as the Poller decides). The A6 is inconsistent both ways,
+        // both seen 2026-11-17 on one file: same id 32592 with titles "01 ALAC 24-96" vs "EverSignal test ALAC
+        // 24-96" (Back, then play), and the same title with ids 32592 vs 735278916 (started from the file browser).
+        String qid = Flat.str(q, "id");
+        boolean sameId = trackId != null && qid != null && !"-1".equals(qid) && trackId.equals(qid);
+        boolean sameTitle = title != null && title.equalsIgnoreCase(Flat.str(q, "title"));
+        if (!sameId && !sameTitle) return false;
+        Double qr = Flat.pos(q, "sampleRateNumber");
+        Double qb = Flat.pos(q, "bits");
+        boolean changed = false;
+        if (qr != null && !qr.equals(rateHz)) { rateHz = qr; changed = true; }
+        if (!lossy && qb != null && !qb.equals(bits)) { bits = qb; changed = true; }
+        if (changed) { formatShort(); computeBadge(settled); }
+        return changed;
     }
 
     void computeBadge(boolean settled) {

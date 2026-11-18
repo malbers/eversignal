@@ -105,6 +105,7 @@ public final class Poller implements Runnable {
                 boolean started = changed || (probe.state == 3 && lastState != 3 && lastState != -1);
                 if (started && probe.state == 3) lastStartAt = now;
                 Track t = Track.from(s, now - keyChangedAt >= SETTLE_MS);
+                t.applyQueueFile(queueItem, now - keyChangedAt >= SETTLE_MS);   // .m4a: the queue has the true rate
                 hold.apply(t, t.state == 3 && now - lastStartAt >= SETTLE_MS && now - keyChangedAt >= SETTLE_MS, now);
                 settle.apply(t, now);   // after the hold: only decides when the badge may change
 
@@ -299,6 +300,11 @@ public final class Poller implements Runnable {
     private int lastQueueIdx = 0;
 
     private static boolean sameTrack(JSONObject it, Track t) {
+        // 1.0.8: an id match counts. The state and the queue can title the same file differently (file name vs tag,
+        // seen 2026-11-17: "01 ALAC 24-96" vs "EverSignal test ALAC 24-96", same id 32592). The title still counts
+        // too: for TIDAL the state's id differs from the queue's (seen 2026-11-15), so id alone would lose TIDAL.
+        String id = it.optString("id", "");
+        if (t.trackId != null && !id.isEmpty() && !"-1".equals(id) && t.trackId.equals(id)) return true;
         if (t.title == null || !t.title.equalsIgnoreCase(it.optString("title"))) return false;
         String a = it.optString("artist", "");
         return t.artist == null || a.isEmpty() || t.artist.equalsIgnoreCase(a);
