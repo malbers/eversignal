@@ -148,6 +148,8 @@ It does not run on non-Eversolo Android boxes, and there is no iPhone or Android
 
 ## What "Bit-perfect" means here
 
+Your music file is a long list of numbers. Bit-perfect means the exact same numbers that are in the file are the ones that leave the Eversolo: nothing added, nothing changed. Why make that the goal? You hear the recording as it was mastered, and your DAC gets to do the job you bought it for. It makes sure nothing in between is quietly changing the music. On its own it won't make a track sound better, and if you like EQ or upsampling, use them. Just know they're on.
+
 The badge says **Bit-perfect** only when all of these are true:
 
 - PCM goes out at the source's own sample rate (no resampling)
