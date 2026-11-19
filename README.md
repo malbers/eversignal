@@ -103,6 +103,17 @@ Tap **Detail**, then swipe left or right through five pages:
 
 Missing info shows as N/A, so you can see what each source reports.
 
+### Settings & about: the gear
+
+Tap the **gear** at the top (next to VU) for the Settings & about page. Tap it again to go back.
+
+![Settings & about](docs/screenshots/3-settings.jpg)
+
+- **Version**, with **Check for updates** and **Release notes** (what changed in every version, right on the player).
+- **Stay in front**: an on/off switch (see below).
+- **Today's listening stats**: Reset clears the Session panel on Detail page 1. Tap Reset, then tap again to confirm. They also clear on their own at midnight.
+- **Feedback**: scan the QR code with your phone to send a bug, an idea, or "it works on my model".
+
 Each page scrolls. Top and scrolled views:
 
 | Page | Top | Scrolled |
@@ -120,7 +131,7 @@ Each page scrolls. Top and scrolled views:
 3. **Open EverSignal** from the **Apps** tab.
 4. **Watch the stats.** Play/pause, next and previous work right there, and the Eversolo's own controls keep working as normal.
 
-**Stay in front** (Detail, page 1, bottom right): starting a track from your phone or connecting AirPlay makes the Eversolo jump to its own player screen. With Stay in front on, EverSignal comes back by itself a couple of seconds later. The first time, Android asks you to allow **Display over other apps**; turn it on, go back, and tap Stay in front again. The Back button always turns it off, so the app can never trap the screen.
+**Stay in front** (the switch on the Settings & about page, behind the gear): starting a track from the Eversolo phone app or connecting AirPlay makes the Eversolo jump to its own player screen. With Stay in front on, EverSignal comes back by itself a moment later. Music you start from the player's own file browser or library doesn't trigger it, because you left EverSignal yourself to go there. The first time, Android asks you to allow **Display over other apps**; turn it on, go back, and tap Stay in front again. The Back button always turns it off, so the app can never trap the screen.
 
 ### What devices does it work on?
 
@@ -235,9 +246,18 @@ An APK with a different signer did not come from here.
 
 From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, tap **Update … · Download** under the cover. It saves the APK to **Download**. Then open **Files › Storage › Download**, tap the APK, and choose **Update**. Your settings stay. If you're on 1.0.0, install 1.0.1 by hand once, the same way you installed 1.0.0.
 
-**Want the update right now?** Long-press **EverSignal** in Apps, choose **Clear data**, then open the app. It checks again straight away and the **Update** pill shows up. Clearing data only resets EverSignal itself: Simple or Detail, Stay in front, and today's listening stats. Nothing on your player changes.
+From 1.0.10, tapping the Update pill shows what's new in that version first, then **Download**. After you update, EverSignal shows what's new once when you open it.
+
+**Want the update right now?** Tap the **gear**, then **Check for updates**. (On 1.0.9 or earlier: long-press **EverSignal** in Apps, choose **Clear data**, then open the app. It checks again straight away and the **Update** pill shows up. Clearing data only resets EverSignal itself: Simple or Detail, Stay in front, and today's listening stats. Nothing on your player changes.)
 
 ## What's new
+
+**1.0.10** (18 November 2026)
+- New **Settings & about** page: tap the **gear** at the top (tap it again to go back). It has your version, **Check for updates**, **Release notes**, the **Stay in front** switch, **Reset** for today's listening stats, and the feedback QR code. The swipe pages are back to the five stats pages.
+- **Stay in front** is now a real on/off switch (it used to hide at the bottom of Detail page 1), and it comes back faster after you start music from the Eversolo phone app or AirPlay.
+- **Release notes in the app:** after an update, EverSignal shows what's new once. Tapping the Update pill shows what's new in that version before you download.
+- Covers load in the background and retry if the player is slow to send them.
+- The Simple / Detail switch is a little narrower, so the track time always fits in the Detail header.
 
 **1.0.9** (17 November 2026)
 - Neater Simple screen: the play controls sit centred on the whole screen, Up next moved under the cover, and the rows have a little more space between them.
@@ -340,7 +360,7 @@ More from the Eversolo Facebook groups:
 
 ## Feedback
 
-Found a bug, have an idea, or tried it on another Eversolo model? Easiest: open **Detail**, swipe to the last page, and scan the QR code with your phone. Or **[tell me here](https://docs.google.com/forms/d/e/1FAIpQLSdaQcFaXOcaRyZr520Lxir_NmPKtZG6aojfJ15XBwSbSB9ffQ/viewform)**. It's a short form, no account needed, and I read every one. If you're on GitHub, you can also [open an issue](https://github.com/malbers/eversignal/issues). A screenshot of the Detail pages helps a lot (blur the Device page first).
+Found a bug, have an idea, or tried it on another Eversolo model? Easiest: tap the **gear** and scan the QR code with your phone. Or **[tell me here](https://docs.google.com/forms/d/e/1FAIpQLSdaQcFaXOcaRyZr520Lxir_NmPKtZG6aojfJ15XBwSbSB9ffQ/viewform)**. It's a short form, no account needed, and I read every one. If you're on GitHub, you can also [open an issue](https://github.com/malbers/eversignal/issues). A screenshot of the Detail pages helps a lot (blur the Device page first).
 
 ## Building from source
 

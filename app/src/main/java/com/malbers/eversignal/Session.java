@@ -82,4 +82,13 @@ public final class Session {
     }
 
     public synchronized void flush() { save(true); }
+
+    /** 1.0.10: clear today's stats now (they also clear on their own at midnight). */
+    public synchronized void reset() {
+        listenedMs = hiresMs = cdMs = dsdMs = lossyMs = 0;
+        tracks = 0;
+        maxPcmHz = maxDsdHz = minBps = maxBps = 0;
+        lastCounted = null;
+        save(true);
+    }
 }

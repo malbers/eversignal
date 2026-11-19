@@ -29,10 +29,13 @@ public final class UpdateCheck {
         public final String version;
         /** Direct APK download, or the release page when no APK is attached. */
         public final String url;
+        /** 1.0.10: the release text (Markdown) from the same reply, for the "what's new" offer; "" when none. */
+        public final String notes;
 
-        Release(String version, String url) {
+        Release(String version, String url, String notes) {
             this.version = version;
             this.url = url;
+            this.notes = notes == null ? "" : notes;
         }
     }
 
@@ -55,7 +58,7 @@ public final class UpdateCheck {
                     }
                 }
             }
-            return url == null ? null : new Release(version, url);
+            return url == null ? null : new Release(version, url, j.optString("body", ""));
         } catch (Exception e) {
             return null;
         }

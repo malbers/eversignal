@@ -40,6 +40,12 @@ public final class ScreenView extends View {
         void toggleStay();
         void openChannel();
         void update();
+        /** 1.0.10: the gear button, Settings & about (Detail's last page) from either mode. */
+        void openSettings();
+        /** 1.0.10: GitHub release check right now (same request as the daily one). */
+        void checkUpdates();
+        /** 1.0.10: clear today's listening stats. */
+        void resetStats();
     }
 
     // design tokens
@@ -54,7 +60,7 @@ public final class ScreenView extends View {
     /** Right edge of the nav, 12 in from the right of the (possibly wider) canvas. */
     private float navRight() { return vw - 12; }
     /** Top-right controls, enlarged in 1.0.2 so they are easy to hit: height, toggle width, VU width. */
-    private static final float NAV_H = 44, TOG_W = 200, VU_W = 72, EQ_W = 72;
+    private static final float NAV_H = 44, TOG_W = 160, VU_W = 72, EQ_W = 72, GEAR_W = 52;
 
     private final Typeface hanken400, hanken500, hanken600, mono400, mono500;
     private final TextPaint tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -68,6 +74,13 @@ public final class ScreenView extends View {
     private String toast;
     private long toastUntil;
     private String[] info;           // the badge definition panel, while shown
+    // 1.0.10: release notes dialog ("# " = version header, "• " = bullet), its scroll, and the optional action button
+    private String notesTitle;
+    private java.util.List<String> notes;
+    private String notesButton;
+    private Runnable notesAction;
+    private String notesCancel;
+    private float notesScroll, notesMax;
     private long infoUntil;
     private float s = 1, ox, oy;
     /**
@@ -76,9 +89,13 @@ public final class ScreenView extends View {
      */
     private float vw = 900;
 
-    static final String[] PAGES = {"Overview", "Track & file", "Queue & playback", "Device", "Inputs, outputs & volume", "Feedback"};
+    static final String[] PAGES = {"Overview", "Track & file", "Queue & playback", "Device", "Inputs, outputs & volume", "Settings & about"};
     /** 1.0.3: the last Detail page is a QR code to the feedback form (the A6 has no browser; a phone does). */
     static final int FEEDBACK_PAGE = 5;
+    /** 1.0.10: the swipe carousel is pages 0-4; Settings & about (page 5) is reached only with the gear. */
+    static final int CAROUSEL = 5;
+    /** Where the gear came from, so a second tap goes back there. */
+    private int pageBeforeSettings = 0;
     private String qrFor;
     private Bitmap qr;
     private int page = 0;
@@ -112,7 +129,29 @@ public final class ScreenView extends View {
 
     public void setSnapshot(Poller.Snapshot s) { snap = s; invalidate(); }
     public void setDetail(boolean d) { detail = d; invalidate(); }
+    /** 1.0.10: jump to a Detail page (the gear opens Settings & about). */
+    public void showPage(int p) {
+        if (p == FEEDBACK_PAGE && page != FEEDBACK_PAGE) pageBeforeSettings = detail ? page : 0;
+        page = p; scroll[p] = 0; invalidate();
+    }
+    public boolean onSettings() { return detail && page == FEEDBACK_PAGE; }
+    /** Back from Settings to the Detail page it was opened from. */
+    public void leaveSettings() { page = pageBeforeSettings; invalidate(); }
     public void setStayOn(boolean on) { stayOn = on; invalidate(); }
+    /** Opens the release-notes dialog. button/action: an extra button next to Close (the Download offer), or null. */
+    public void showNotes(String title, java.util.List<String> lines, String button, Runnable action) {
+        showNotes(title, lines, button, action, button != null ? "Not now" : "Close");
+    }
+
+    /** Same dialog with a chosen cancel label (the reset confirmation says No / Yes, reset). */
+    public void showNotes(String title, java.util.List<String> lines, String button, Runnable action, String cancel) {
+        notesTitle = title; notes = lines; notesButton = button; notesAction = action; notesCancel = cancel; notesScroll = 0;
+        info = null;
+        invalidate();
+    }
+
+    private void closeNotes() { notes = null; notesAction = null; invalidate(); }
+
     public void toast(String text) { toast = text; toastUntil = System.currentTimeMillis() + 1600; invalidate(); }
 
     /** The update pill: null hides it; colour says the state (offer / downloading / saved / failed). */
@@ -164,6 +203,7 @@ public final class ScreenView extends View {
 
         long now = System.currentTimeMillis();
         if (info != null && now < infoUntil) drawInfo(c);
+        if (notes != null) drawNotes(c);
         if (toast != null && now < toastUntil) drawToast(c);
         boolean animate = (sn != null && sn.track != null && sn.track.state == 3) || (toast != null && now < toastUntil)
             || (info != null && now < infoUntil);
@@ -192,6 +232,8 @@ public final class ScreenView extends View {
     private float drawNav(Canvas c, Track t) {
         float x = navRight() - TOG_W;
         drawToggle(c, x, NAV_Y);
+        x -= 10 + GEAR_W;
+        drawGear(c, x, NAV_Y, GEAR_W, detail && page == FEEDBACK_PAGE);
         x -= 10 + VU_W;
         drawVu(c, x, NAV_Y, VU_W);
         x -= 10 + EQ_W;
@@ -428,6 +470,103 @@ public final class ScreenView extends View {
         hits.add(new Object[]{new RectF(0, 0, getWidth(), getHeight()), (Runnable) () -> { info = null; invalidate(); }});
     }
 
+    /** A tappable text link (accent colour, underlined). Returns its width. */
+    private float link(Canvas c, String t, float x, float baseline, float size, Runnable r) {
+        float w = measure(t, size, hanken600);
+        text(c, t, x, baseline, size, hanken600, ACCENT, w + 4);
+        roundRect(c, x, baseline + 4, w, 1.5f, 0.75f, ACCENT);
+        hit(x - 6, baseline - size - 8, w + 12, size + 20, r);
+        return w;
+    }
+
+    /** Reset (design 1.0.10): first tap arms "Tap to confirm" for 3 s, second tap clears and shows "Cleared" 1.5 s. */
+    private long resetArmedUntil, resetDoneUntil;
+    private void resetTapped() {
+        long now = System.currentTimeMillis();
+        if (now < resetArmedUntil) { resetArmedUntil = 0; resetDoneUntil = now + 1500; actions.resetStats(); }
+        else { resetArmedUntil = now + 3000; resetDoneUntil = 0; }
+        invalidate();
+    }
+
+    /** Check for updates button label: "Checking…", then the result for a moment. null = the normal label. */
+    private String checkLabel;
+    private long checkLabelUntil;
+    public void checkStatus(String label, long ms) { checkLabel = label; checkLabelUntil = System.currentTimeMillis() + ms; invalidate(); }
+    /** The link on the Feedback page: every bundled release, newest first. */
+    private void openAllNotes() { showNotes("What's new in EverSignal", ReleaseNotes.all(), null, null); }
+
+    /** 1.0.10: release notes dialog. Scrolls (drag or wheel); tap outside or Close to dismiss. */
+    private void drawNotes(Canvas c) {
+        float w = Math.min(820, vw - 40), x = (vw - w) / 2f;
+        float padX = 28, maxW = w - 2 * padX - 10;
+        // lay out: {text, size, typeface, colour, gapBefore}
+        java.util.List<Object[]> rows = new java.util.ArrayList<>();
+        for (String line : notes) {
+            if (line.startsWith("# ")) {
+                rows.add(new Object[]{line.substring(2), 17f, hanken600, ACCENT, rows.isEmpty() ? 0f : 14f});
+            } else {
+                boolean bullet = line.startsWith("\u2022 ");
+                String body = bullet ? line.substring(2) : line;
+                java.util.List<String> parts = wrap(body, 16, hanken400, maxW - (bullet ? 22 : 0));
+                for (int i = 0; i < parts.size(); i++) {
+                    rows.add(new Object[]{parts.get(i).trim(), 16f, hanken400, 0xD9FFFFFF, 0f, bullet, i == 0});
+                }
+            }
+        }
+        float lh = 25, total = 0;
+        for (Object[] r : rows) total += lh + (Float) r[4];
+        // fits the content (a short confirmation is small), up to 420 tall; longer content scrolls
+        float h = Math.min(420, 62 + total + 12 + 64), y = Math.max(30, (480 - h) / 2f);
+        float bodyTop = y + 62, bodyBottom = y + h - 64;
+        p.reset(); p.setColor(0xB3000000);
+        c.drawRect(X(0), Y(0), X(vw), Y(480), p);
+        // order matters: hits are searched last-first, so the buttons win, then the panel, then "outside"
+        hits.add(new Object[]{new RectF(0, 0, getWidth(), getHeight()), (Runnable) this::closeNotes});
+        hits.add(new Object[]{new RectF(X(x), Y(y), X(x + w), Y(y + h)), (Runnable) () -> { }});
+        roundRect(c, x, y, w, h, 14, 0xFF1B1A19);
+        strokeRect(c, x + 0.5f, y + 0.5f, w - 1, h - 1, 14, 0x24FFFFFF, 1);
+        fitText(c, notesTitle, x + padX, y + 40, 22, hanken600, Color.WHITE, maxW);
+
+        notesMax = Math.max(0, total - (bodyBottom - bodyTop));
+        notesScroll = Math.max(0, Math.min(notesMax, notesScroll));
+
+        c.save();
+        c.clipRect(X(x), Y(bodyTop), X(x + w), Y(bodyBottom));
+        float yy = bodyTop - notesScroll;
+        for (Object[] r : rows) {
+            yy += (Float) r[4] + lh;
+            if (yy < bodyTop - lh || yy > bodyBottom + lh) continue;
+            boolean bullet = r.length > 5 && (Boolean) r[5];
+            float tx = x + padX + (bullet ? 22 : 0);
+            if (bullet && (Boolean) r[6]) text(c, "•", x + padX + 4, yy - 7, 16, hanken600, ACCENT, 20);
+            text(c, (String) r[0], tx, yy - 7, (Float) r[1], (Typeface) r[2], (Integer) r[3], maxW + 10);
+        }
+        c.restore();
+        if (notesMax > 0) {
+            float track = bodyBottom - bodyTop, barH = Math.max(24, track * track / total);
+            roundRect(c, x + w - 12, bodyTop + (track - barH) * (notesScroll / notesMax), 3, barH, 1.5f, 0x40FFFFFF);
+        }
+
+        // buttons, right-aligned: [Not now / Close] [Download ...]
+        float bh = 40, by = y + h - bh - 14, bx = x + w - padX;
+        if (notesButton != null) {
+            float bw = measure(notesButton, 17, hanken600) + 36;
+            bx -= bw;
+            roundRect(c, bx, by, bw, bh, bh / 2, GREEN);
+            drawCentered(c, notesButton, bx, by, bw, bh, 17, hanken600, DARK_TEXT);
+            Runnable a = notesAction;
+            hit(bx, by, bw, bh, () -> { closeNotes(); if (a != null) a.run(); });
+            bx -= 12;
+        }
+        String close = notesCancel != null ? notesCancel : "Close";
+        float cw = measure(close, 17, hanken600) + 36;
+        bx -= cw;
+        roundRect(c, bx, by, cw, bh, bh / 2, 0x1AFFFFFF);
+        drawCentered(c, close, bx, by, cw, bh, 17, hanken600, Color.WHITE);
+        hit(bx, by, cw, bh, this::closeNotes);
+        if (notesMax > 0) text(c, "Scroll for more", x + padX, by + 26, 14, hanken400, 0x80FFFFFF, 200);
+    }
+
     private void drawProgress(Canvas c, Poller.Snapshot sn, float x, float y, float w, float size) {
         Track t = sn.track;
         long pos = position(sn);
@@ -484,10 +623,16 @@ public final class ScreenView extends View {
         }
         long pos = position(sn);
         float frac = t.durationMs > 0 ? Math.min(1f, pos / (float) t.durationMs) : 0;
-        float barW = Math.max(50, Math.min(200, px - bx - 150));
-        roundRect(c, bx, by + 9, barW, 3, 1.5f, 0x24FFFFFF);
-        if (frac > 0) roundRect(c, bx, by + 9, barW * frac, 3, 1.5f, LIGHT);
-        text(c, mss(pos) + " / " + (t.durationMs > 0 ? mss(t.durationMs) : "–"), bx + barW + 10, by + 15.5f, 14, mono400, 0xB3FFFFFF, 140);
+        // 1.0.10: the bar gives way first, so the time never runs under the pause button
+        String time = mss(pos) + " / " + (t.durationMs > 0 ? mss(t.durationMs) : "–");
+        float timeW = measure(time, 14, mono400), room = px - 10 - bx;
+        float barW = Math.min(200, room - timeW - 18);
+        if (barW >= 30) {
+            roundRect(c, bx, by + 9, barW, 3, 1.5f, 0x24FFFFFF);
+            if (frac > 0) roundRect(c, bx, by + 9, barW * frac, 3, 1.5f, LIGHT);
+            bx += barW + 10;
+        }
+        text(c, time, bx, by + 15.5f, 14, mono400, 0xB3FFFFFF, Math.max(0, px - 4 - bx));
 
         drawDots(c);
         if (page == FEEDBACK_PAGE) { drawFeedback(c, sn); return; }
@@ -496,7 +641,7 @@ public final class ScreenView extends View {
         // Two columns, zoomed, scrolling. What you check at the rack comes first: Music + Source | Signal path;
         // then Session + Link | Device further down.
         beginContent(c);
-        float musicH = 27 + 48 + (t.tags.isEmpty() ? 0 : 19) + 9 * 16.5f + 10, sourceH = 118, sessH = 268, linkH = 112, signalH = 388;
+        float musicH = 27 + 48 + (t.tags.isEmpty() ? 0 : 19) + 9 * 16.5f + 10, sourceH = 118, sessH = 268, linkH = 96, signalH = 388;
         float gap = 8;
         if (columns() == 3) {
             // wide screens (T10): Music + Source + Link | Signal path | Session + Device
@@ -767,9 +912,7 @@ public final class ScreenView extends View {
             float vw = tp.measureText("0") / s;
             text(c, "0", ix + iw - vw, ey + 12, 11.5f, mono400, GREEN, vw + 2);
         }
-        float sy = ry;
-        row1(c, "Stay in front", stayOn ? "On" : "Off", ix, sy, iw);
-        hit(ix, sy - 3, iw, 22, actions::toggleStay);
+        // 1.0.10: Stay in front moved to the Settings & about page (it was hard to find here)
     }
 
     // ================================================================ Detail carousel: stats pages
@@ -797,16 +940,17 @@ public final class ScreenView extends View {
     }
 
     private void drawDots(Canvas c) {
-        float d = 7, gap = 10, total = PAGES.length * d + (PAGES.length - 1) * gap;
+        float d = 7, gap = 10, total = CAROUSEL * d + (CAROUSEL - 1) * gap;
         float x = (vw - total) / 2f, y = 469;
-        for (int i = 0; i < PAGES.length; i++) {
+        if (page == FEEDBACK_PAGE) { text(c, PAGES[page], 16, y + 8, 13, hanken500, 0x99FFFFFF, 330); return; }
+        for (int i = 0; i < CAROUSEL; i++) {
             p.reset(); p.setAntiAlias(true); p.setColor(i == page ? LIGHT : 0x40FFFFFF);
             c.drawCircle(X(x + d / 2), Y(y + d / 2), d / 2 * s, p);
             final int target = i;
             hit(x - 4, y - 6, d + 8, d + 12, () -> { page = target; invalidate(); });
             x += d + gap;
         }
-        text(c, (page + 1) + " / " + PAGES.length + "  " + PAGES[page], 16, y + 8, 13, hanken500, 0x99FFFFFF, 330);
+        text(c, (page + 1) + " / " + CAROUSEL + "  " + PAGES[page], 16, y + 8, 13, hanken500, 0x99FFFFFF, 330);
         if (page == 0) text(c, "swipe for more →", vw - 16 - measure("swipe for more →", 13, hanken500), y + 8, 13, hanken500, 0x73FFFFFF, 220);
     }
 
@@ -1241,17 +1385,44 @@ public final class ScreenView extends View {
     private void drawToggle(Canvas c, float x, float y) {
         float h = NAV_H, segW = (TOG_W - 8) / 2;
         roundRect(c, x, y, TOG_W, h, h / 2, 0x1AFFFFFF);
-        float ax = detail ? x + 4 + segW : x + 4;
-        roundRect(c, ax, y + 4, segW, h - 8, (h - 8) / 2, LIGHT);
-        drawCentered(c, "Simple", x + 4, y + 4, segW, h - 8, 18, hanken600, detail ? 0xBFFFFFFF : DARK_TEXT);
-        drawCentered(c, "Detail", x + 4 + segW, y + 4, segW, h - 8, 18, hanken600, detail ? DARK_TEXT : 0xBFFFFFFF);
-        hit(x, y, TOG_W, h, actions::toggleMode);
+        // 1.0.10: on Settings & about neither side is selected; Detail then goes back to page 1
+        boolean settings = detail && page == FEEDBACK_PAGE;
+        if (!settings) {
+            float ax = detail ? x + 4 + segW : x + 4;
+            roundRect(c, ax, y + 4, segW, h - 8, (h - 8) / 2, LIGHT);
+        }
+        drawCentered(c, "Simple", x + 4, y + 4, segW, h - 8, 17, hanken600, detail || settings ? 0xBFFFFFFF : DARK_TEXT);
+        drawCentered(c, "Detail", x + 4 + segW, y + 4, segW, h - 8, 17, hanken600, detail && !settings ? DARK_TEXT : 0xBFFFFFFF);
+        hit(x, y, TOG_W / 2, h, () -> { if (detail) { if (page == FEEDBACK_PAGE) page = pageBeforeSettings; actions.toggleMode(); } });
+        hit(x + TOG_W / 2, y, TOG_W / 2, h, () -> { if (!detail) actions.toggleMode(); else if (page == FEEDBACK_PAGE) leaveSettings(); });
     }
 
     private void drawVu(Canvas c, float x, float y, float w) {
         strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, NAV_H - 1.5f, 10, 0x59FFFFFF, 1.5f);
         drawCentered(c, "VU", x, y, w, NAV_H, 18, mono500, Color.WHITE);
         hit(x, y, w, NAV_H, actions::vu);
+    }
+
+    /** 1.0.10: gear button, opens Settings & about. Lit while that page is showing. */
+    private void drawGear(Canvas c, float x, float y, float w, boolean here) {
+        int col = here ? ACCENT : Color.WHITE;
+        if (here) roundRect(c, x, y, w, NAV_H, 10, 0x24D9B48A);
+        strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, NAV_H - 1.5f, 10, here ? ACCENT : 0x59FFFFFF, 1.5f);
+        float cx = x + w / 2, cy = y + NAV_H / 2;
+        p.reset(); p.setAntiAlias(true); p.setColor(col);
+        p.setStyle(Paint.Style.STROKE); p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(3.6f * s);
+        for (int i = 0; i < 8; i++) {                 // teeth
+            double a = i * Math.PI / 4;
+            float ix = (float) Math.cos(a), iy = (float) Math.sin(a);
+            c.drawLine(X(cx + ix * 9.5f), Y(cy + iy * 9.5f), X(cx + ix * 12.5f), Y(cy + iy * 12.5f), p);
+        }
+        p.setStrokeWidth(3f * s);
+        c.drawCircle(X(cx), Y(cy), 7.5f * s, p);       // ring
+        p.setStyle(Paint.Style.FILL);
+        c.drawCircle(X(cx), Y(cy), 2.2f * s, p);       // hub
+        p.setStrokeCap(Paint.Cap.BUTT);
+        hit(x, y, w, NAV_H, actions::openSettings);
     }
 
     /** 1.0.6: opens the Eversolo's own EQ app (on/off per output lives there). Lit like the "EQ active" badge when on. */
@@ -1350,38 +1521,120 @@ public final class ScreenView extends View {
         String details = FeedbackLink.details(BuildConfig.VERSION_NAME, model, dis, fw, v(m, "androidversion"), screen, appArea());
         String url = FeedbackLink.url(choice, fw, details);
 
-        float lx = 24, tw = 520;
-        label(c, "FEEDBACK", lx, 104, 12);
-        fitText(c, "Found a bug, or got it working on your model?", lx, 138, 24, hanken600, Color.WHITE, tw);
-        text(c, "Scan the code with your phone to open the feedback form.", lx, 170, 17, hanken400, 0xD9FFFFFF, tw);
-        text(c, "It fills these in for you:", lx, 212, 15, hanken500, 0xB3FFFFFF, tw);
-        float ry = 240;
+        // 1.0.10: Settings & about, rebuilt from Michael's design handoff (2026-11-18): two panels, no scrolling.
+        // Left "EverSignal": version + Check for updates / Release notes, Stay in front switch, today's stats Reset.
+        // Right "Feedback": title, what the code fills in, privacy line pinned at the bottom, QR 210 vertically centred.
+        long now = System.currentTimeMillis();
+        float top = 70, bottom = 444, ph = bottom - top;
+        float rw = 492, rx = vw - 14 - rw, lx0 = 16, lw = rx - 8 - lx0;
+
+        // ---------------- left panel
+        panel(c, "EverSignal", lx0, top, lw, ph);
+        float ix = lx0 + 14, iw = lw - 28, y = top + 27 + 10;
+        text(c, "Version", ix, y + 15, 17, hanken600, LIGHT, iw / 2);
+        String ver = BuildConfig.VERSION_NAME;
+        float vwid = measure(ver, 17, mono500);
+        text(c, ver, ix + iw - vwid, y + 15, 17, mono500, LIGHT, vwid + 2);
+        y += 20 + 9;
+        float bw = (iw - 8) / 2;
+        String cl = checkLabel != null && now < checkLabelUntil ? checkLabel : "Check for updates";
+        if (checkLabel != null && now < checkLabelUntil) postInvalidateDelayed(200);
+        outlineButton(c, cl, ix, y, bw, 44, 0x38FFFFFF, LIGHT, actions::checkUpdates);
+        outlineButton(c, "Release notes", ix + bw + 8, y, bw, 44, 0x38FFFFFF, LIGHT, this::openAllNotes);
+        y += 44 + 12;
+        divider(c, ix, y, iw);
+
+        // Stay in front: the whole row is tappable
+        float rowTop = y, swW = 48, swH = 28, tw = iw - swW - 14;
+        y += 12;
+        text(c, "Stay in front", ix, y + 15, 17, hanken600, LIGHT, tw);
+        float dy = y + 20 + 3;
+        for (String line : wrap("Comes back a moment after you start music from the Eversolo phone app or AirPlay.", 13.5f, hanken400, tw)) {
+            text(c, line, ix, dy + 14, 13.5f, hanken400, 0x99FFFFFF, tw + 4);
+            dy += 19;
+        }
+        float rowBottom = dy + 12;
+        float swX = ix + iw - swW, swY = (rowTop + rowBottom) / 2 - swH / 2;
+        roundRect(c, swX, swY, swW, swH, swH / 2, stayOn ? CHIP_GREEN : 0x33FFFFFF);
+        p.reset(); p.setAntiAlias(true); p.setColor(LIGHT);
+        c.drawCircle(X(stayOn ? swX + swW - 3 - 11 : swX + 3 + 11), Y(swY + swH / 2), 11 * s, p);
+        hit(ix, rowTop, iw, rowBottom - rowTop, actions::toggleStay);
+        y = rowBottom;
+        divider(c, ix, y, iw);
+
+        // Today's listening stats: Reset, two steps
+        boolean armed = now < resetArmedUntil, done = now < resetDoneUntil;
+        if (armed || done) postInvalidateDelayed(200);
+        String rl = done ? "Cleared" : armed ? "Tap to confirm" : "Reset";
+        float rbw = measure(rl, 15, hanken600) + 32;
+        rowTop = y; y += 12;
+        tw = iw - rbw - 14;
+        text(c, "Today's listening stats", ix, y + 15, 17, hanken600, LIGHT, tw);
+        dy = y + 20 + 3;
+        for (String line : wrap("Clears the Session panel on the Detail screen.", 13.5f, hanken400, tw)) {
+            text(c, line, ix, dy + 14, 13.5f, hanken400, 0x99FFFFFF, tw + 4);
+            dy += 19;
+        }
+        rowBottom = dy + 12;
+        int rc = armed ? ORANGE : done ? GREEN : LIGHT;
+        outlineButton(c, rl, ix + iw - rbw, (rowTop + rowBottom) / 2 - 22, rbw, 44, armed ? ORANGE : 0x38FFFFFF, rc, this::resetTapped);
+
+        // ---------------- right panel
+        panel(c, "Feedback", rx, top, rw, ph);
+        float qs = 210, qx = rx + rw - 14 - qs, qy = top + (ph - qs) / 2;
+        float fx = rx + 14, fcw = qx - 16 - fx, fy = top + 27 + 2;
+        for (String line : wrap("Found a bug, or got it working on your model?", 18, hanken600, fcw)) {
+            text(c, line, fx, fy + 17, 18, hanken600, LIGHT, fcw + 4);
+            fy += 22;
+        }
+        fy += 6;
+        for (String line : wrap("Scan the code to open the form. These details are filled in for you:", 13, hanken400, fcw)) {
+            text(c, line, fx, fy + 13, 13, hanken400, 0x99FFFFFF, fcw + 4);
+            fy += 18;
+        }
+        fy += 12;
+        String modelV = choice != null ? choice : dis != null ? dis : model != null ? model : null;
         String[][] rows = {
-            {"Model", choice != null ? choice : (dis != null ? dis + " (pick yours)" : model != null ? model + " (pick yours)" : "you pick it")},
+            {"Model", modelV},
             {"Firmware", fw != null ? fw : "N/A"},
             {"EverSignal", BuildConfig.VERSION_NAME},
             {"Screen", screen},
         };
+        float kw = 0;
+        for (String[] r : rows) kw = Math.max(kw, measure(r[0], 12, hanken400));
         for (String[] r : rows) {
-            text(c, r[0], lx, ry, 15, hanken500, ACCENT, 120);
-            text(c, r[1], lx + 120, ry, 15, mono400, Color.WHITE, tw - 120);
-            ry += 26;
+            text(c, r[0], fx, fy + 12, 12, hanken400, 0x80FFFFFF, kw + 2);
+            float vx = fx + kw + 12, vmax = fcw - kw - 12;
+            if (r == rows[0] && choice == null) {
+                String v = r[1] != null ? r[1] + " " : "";
+                text(c, v, vx, fy + 12, 12, mono400, LIGHT, vmax);
+                text(c, "(pick yours)", vx + measure(v, 12, mono400), fy + 12, 12, mono400, 0x73FFFFFF, Math.max(0, vmax - measure(v, 12, mono400)));
+            } else {
+                text(c, r[1], vx, fy + 12, 12, mono400, LIGHT, vmax);
+            }
+            fy += 21;
         }
-        text(c, "EverSignal sends nothing. Your phone opens the form, and only if you scan.", lx, 370, 14, hanken400, 0x99FFFFFF, tw);
-        text(c, "No account needed. Email is optional.", lx, 394, 14, hanken400, 0x99FFFFFF, tw);
+        java.util.List<String> priv = wrap("EverSignal sends nothing. Your phone opens the form only if you scan. No account needed.", 11, hanken400, fcw);
+        float py = bottom - 12 - priv.size() * 16;
+        for (String line : priv) { text(c, line, fx, py + 11, 11, hanken400, 0x80FFFFFF, fcw + 4); py += 16; }
 
-        float box = 300, bx = vw - 14 - 16 - box, by = 96;
-        roundRect(c, bx, by, box, box, 14, Color.WHITE);
+        roundRect(c, qx, qy, qs, qs, 12, Color.WHITE);
         Bitmap b = qrBitmap(url);
         if (b != null) {
-            float pad = 18;
+            float pad = 12;
             Paint qp = new Paint();
             qp.setFilterBitmap(false); qp.setAntiAlias(false);
-            c.drawBitmap(b, null, new RectF(X(bx + pad), Y(by + pad), X(bx + box - pad), Y(by + box - pad)), qp);
+            c.drawBitmap(b, null, new RectF(X(qx + pad), Y(qy + pad), X(qx + qs - pad), Y(qy + qs - pad)), qp);
         } else {
-            drawCentered(c, "QR code unavailable", bx, by, box, box, 15, hanken500, DARK_TEXT);
+            drawCentered(c, "QR code unavailable", qx, qy, qs, qs, 13, hanken500, DARK_TEXT);
         }
-        drawCentered(c, "Scan with your phone camera", bx, by + box + 6, box, 24, 14, hanken500, 0xB3FFFFFF);
+    }
+
+    /** Outlined button (design: radius 8, 1.5 border), label centred; at least 44 tall for the hit target. */
+    private void outlineButton(Canvas c, String label, float x, float y, float w, float h, int border, int textCol, Runnable r) {
+        strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, h - 1.5f, 8, border, 1.5f);
+        drawCentered(c, label, x, y, w, h, 15, hanken600, textCol);
+        hit(x, y, w, h, r);
     }
 
     /** The QR code as a 1-pixel-per-module bitmap, drawn scaled up without smoothing. Rebuilt only when the link changes. */
@@ -1517,10 +1770,18 @@ public final class ScreenView extends View {
     @Override public boolean onTouchEvent(MotionEvent e) {
         switch (e.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                downX = e.getX(); downY = e.getY(); downScroll = scroll[page]; dragging = false;
+                downX = e.getX(); downY = e.getY(); downScroll = notes != null ? notesScroll : scroll[page]; dragging = false;
                 return true;
             case MotionEvent.ACTION_MOVE: {
                 float dx = e.getX() - downX, dy = e.getY() - downY;
+                if (notes != null) {
+                    if (Math.abs(dy) > 8 * s) {
+                        dragging = true;
+                        notesScroll = Math.max(0, Math.min(notesMax, downScroll - dy / s));
+                        invalidate();
+                    }
+                    return true;
+                }
                 if (info == null && detail && Math.abs(dy) > 8 * s && Math.abs(dy) > Math.abs(dx)) {
                     dragging = true;
                     scroll[page] = Math.max(0, Math.min(maxScroll, downScroll - dy / (s * Z)));
@@ -1531,8 +1792,8 @@ public final class ScreenView extends View {
             case MotionEvent.ACTION_UP: {
                 float dx = e.getX() - downX, dy = e.getY() - downY;
                 if (dragging) return true;
-                if (info == null && detail && Math.abs(dx) > 60 * s && Math.abs(dx) > Math.abs(dy) * 1.5f) {
-                    page = (page + (dx < 0 ? 1 : PAGES.length - 1)) % PAGES.length;
+                if (notes == null && info == null && detail && Math.abs(dx) > 60 * s && Math.abs(dx) > Math.abs(dy) * 1.5f) {
+                    page = page == FEEDBACK_PAGE ? (dx < 0 ? 0 : CAROUSEL - 1) : (page + (dx < 0 ? 1 : CAROUSEL - 1)) % CAROUSEL;
                     invalidate();
                     return true;
                 }
@@ -1553,10 +1814,15 @@ public final class ScreenView extends View {
      * (Shift + wheel, or a trackpad swipe) changes page, like a swipe.
      */
     @Override public boolean onGenericMotionEvent(MotionEvent e) {
+        if (e.getAction() == MotionEvent.ACTION_SCROLL && notes != null) {
+            float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
+            if (v != 0) { notesScroll = Math.max(0, Math.min(notesMax, notesScroll - v * 50)); invalidate(); }
+            return true;
+        }
         if (e.getAction() == MotionEvent.ACTION_SCROLL && detail && info == null) {
             float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL), h = e.getAxisValue(MotionEvent.AXIS_HSCROLL);
             if (h != 0) {
-                page = (page + (h > 0 ? 1 : PAGES.length - 1)) % PAGES.length;
+                page = page == FEEDBACK_PAGE ? (h > 0 ? 0 : CAROUSEL - 1) : (page + (h > 0 ? 1 : CAROUSEL - 1)) % CAROUSEL;
                 invalidate();
                 return true;
             }

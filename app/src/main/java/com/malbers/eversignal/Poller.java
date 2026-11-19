@@ -10,6 +10,8 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Polls the player (one request at a time) and hands the screen a fresh Snapshot.
@@ -78,8 +80,15 @@ public final class Poller implements Runnable {
     private int queuePos = -1, queueTotal = -1;
     private long queueDurationMs = -1;
     private List<String[]> upNext = new ArrayList<>();
-    private Bitmap cover;
-    private int tint = Color.rgb(42, 38, 34);
+    // Written by the cover thread, read by the poll loop.
+    private volatile Bitmap cover;
+    private volatile int tint = Color.rgb(42, 38, 34);
+    private final CoverRetry coverRetry = new CoverRetry();
+    private final ExecutorService coverExec = Executors.newSingleThreadExecutor(r -> {
+        Thread th = new Thread(r, "eversignal-cover");
+        th.setDaemon(true);
+        return th;
+    });
 
     public Poller(Api api, Session session, Listener listener) {
         this.api = api;
@@ -87,7 +96,7 @@ public final class Poller implements Runnable {
         this.listener = listener;
     }
 
-    public void stop() { running = false; }
+    public void stop() { running = false; coverExec.shutdownNow(); }
 
     @Override public void run() {
         alive = true;
@@ -115,7 +124,13 @@ public final class Poller implements Runnable {
                     readQueue(s, t);
                 }
                 String ref = t.artUrl != null ? "u:" + t.artUrl : t.artPath != null ? "p:" + t.artPath : t.artId != null ? "i:" + t.artId : null;
-                if (ref == null ? artRef != null : !ref.equals(artRef)) { artRef = ref; loadCover(t); }
+                if (ref == null ? artRef != null : !ref.equals(artRef)) { artRef = ref; cover = null; coverRetry.start(now); }   // never show the last track's cover
+                int coverGen = coverRetry.take(now);
+                if (coverGen > 0) {
+                    final Track ct = t;
+                    try { coverExec.execute(() -> loadCover(ct, coverGen)); }
+                    catch (Exception e) { coverRetry.finish(coverGen, CoverRetry.Outcome.FAIL, now); }
+                }
 
                 session.record(t, lastPoll == 0 ? 0 : now - lastPoll);
                 lastPoll = now;
@@ -366,14 +381,18 @@ public final class Poller implements Runnable {
         return q < 0 ? url : url.substring(0, q) + " (signed link hidden)";
     }
 
-    private void loadCover(Track t) {
+    /** Runs on the cover thread. A FAIL is retried by CoverRetry; a result for an older track is dropped. */
+    private void loadCover(Track t, int gen) {
         Bitmap b = null;
+        CoverRetry.Outcome out;
         try {
             byte[] data = t.artUrl != null ? Api.bytes(t.artUrl, 8000)
                 : t.artPath != null ? Api.bytes(api.url(t.artPath), 8000)
                 : t.artId != null ? Api.bytes(api.url(Api.image(t.artId)), 8000) : null;
-            // The player answers {"status":806} (JSON, not an image) when it has no art.
-            if (data != null && data.length > 64 && data[0] != '{') {
+            // The player answers {"status":806} (JSON, not an image) when it has no art: final, no retry.
+            if (data == null || data.length <= 64 || data[0] == '{') {
+                out = CoverRetry.Outcome.NONE;
+            } else {
                 BitmapFactory.Options o = new BitmapFactory.Options();
                 o.inJustDecodeBounds = true;
                 BitmapFactory.decodeByteArray(data, 0, data.length, o);
@@ -382,10 +401,15 @@ public final class Poller implements Runnable {
                 o = new BitmapFactory.Options();
                 o.inSampleSize = sample;
                 b = BitmapFactory.decodeByteArray(data, 0, data.length, o);
+                out = b != null ? CoverRetry.Outcome.OK : CoverRetry.Outcome.FAIL;   // cut-off bytes: try again
             }
-        } catch (Exception ignored) { }
+        } catch (Exception e) {
+            out = CoverRetry.Outcome.FAIL;   // timeout, network error
+        }
+        if (!coverRetry.finish(gen, out, System.currentTimeMillis())) return;
+        int tn = b == null ? Color.rgb(42, 38, 34) : tintOf(b);
         cover = b;
-        tint = b == null ? Color.rgb(42, 38, 34) : tintOf(b);
+        tint = tn;
     }
 
     /** A dark, low-saturation tint from the cover's average colour (design: OKLCH L about .34, low chroma). */

@@ -22,6 +22,12 @@ public class UpdateCheckTest {
         UpdateCheck.Release r = UpdateCheck.latest(answer(200, json));
         assertEquals("1.0.2", r.version);
         assertEquals("https://x/EverSignal-1.0.2.apk", r.url);
+        assertEquals("", r.notes);
+    }
+
+    @Test public void keepsReleaseText() {
+        String json = "{\"tag_name\":\"v1.0.10\",\"html_url\":\"https://x\",\"body\":\"- **New:** notes\",\"assets\":[]}";
+        assertEquals("- **New:** notes", UpdateCheck.latest(answer(200, json)).notes);
     }
 
     @Test public void fallsBackToReleasePageWithoutApk() {

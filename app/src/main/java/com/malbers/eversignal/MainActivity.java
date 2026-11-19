@@ -26,6 +26,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     private final ExecutorService commands = Executors.newSingleThreadExecutor();
     private ScreenView view;
     private Poller poller;
+    private Session session;
     private Api api;
 
     @Override protected void onCreate(Bundle b) {
@@ -36,12 +37,32 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         view.setDetail(prefs().getBoolean("detail", false));
         view.setStayOn(stayOn());
         setContentView(view);
-        poller = new Poller(api, new Session(this), snap -> ui.post(() -> view.setSnapshot(snap)));
+        session = new Session(this);
+        poller = new Poller(api, session, snap -> ui.post(() -> view.setSnapshot(snap)));
         Thread t = new Thread(poller, "poller");
         t.setDaemon(true);
         t.start();
         showUpdate();
         checkForUpdate();
+        whatsNewAfterUpdate();
+    }
+
+    /**
+     * 1.0.10 (A1): the first time a new version opens after an UPDATE, show what's new once. A fresh install shows
+     * nothing (firstInstallTime == lastUpdateTime). Remembered per versionCode.
+     */
+    private void whatsNewAfterUpdate() {
+        int code = BuildConfig.VERSION_CODE;
+        if (prefs().getInt("notes_seen", 0) >= code) return;
+        prefs().edit().putInt("notes_seen", code).apply();
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            if (pi.firstInstallTime == pi.lastUpdateTime) return;
+        } catch (Exception e) {
+            return;
+        }
+        ui.postDelayed(() -> view.showNotes("Updated to EverSignal " + BuildConfig.VERSION_NAME + ". What's new:",
+            ReleaseNotes.all(), null, null), 800);
     }
 
     // ---------------------------------------------------------------- update check
@@ -59,7 +80,8 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         Thread t = new Thread(() -> {
             UpdateCheck.Release r = UpdateCheck.latest(new UpdateCheck.UrlHttp(USER_AGENT));
             if (r == null) return;
-            prefs().edit().putString("upd_version", r.version).putString("upd_url", r.url).apply();
+            prefs().edit().putString("upd_version", r.version).putString("upd_url", r.url)
+                .putString("upd_notes", r.notes).apply();
             ui.post(this::showUpdate);
         }, "update-check");
         t.setDaemon(true);
@@ -87,6 +109,19 @@ public class MainActivity extends Activity implements ScreenView.Actions {
      * (most Eversolos have none). Only ever runs when the pill is tapped. Falls back to a browser if that service is missing.
      */
     @Override public void update() {
+        // 1.0.10 (A2): the offer shows what's new in that version first; Download in the dialog starts it
+        String v = newerVersion();
+        if (v != null && downloadState == null) {
+            java.util.List<String> lines = ReleaseNotes.fromMarkdown(prefs().getString("upd_notes", null));
+            if (!lines.isEmpty()) {
+                view.showNotes("EverSignal " + v + " is available. What's new:", lines, "Download " + v, this::download);
+                return;
+            }
+        }
+        download();
+    }
+
+    private void download() {
         String v = newerVersion();
         String url = prefs().getString("upd_url", null);
         if (v == null || url == null) return;
@@ -177,6 +212,43 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     }
 
     // ---------------------------------------------------------------- actions
+
+    @Override public void resetStats() { if (session != null) session.reset(); }
+
+    /** 1.0.10: the same GitHub check as the daily one, on demand. A newer version opens the what's-new offer. */
+    @Override public void checkUpdates() {
+        view.checkStatus("Checking…", 20000);
+        Thread t = new Thread(() -> {
+            UpdateCheck.Release r = UpdateCheck.latest(new UpdateCheck.UrlHttp(USER_AGENT));
+            ui.post(() -> {
+                if (r == null) { view.checkStatus("Couldn't reach GitHub", 1800); return; }
+                prefs().edit().putLong("upd_checked", System.currentTimeMillis()).putString("upd_version", r.version)
+                    .putString("upd_url", r.url).putString("upd_notes", r.notes).apply();
+                showUpdate();
+                String v = newerVersion();
+                if (v != null) { view.checkStatus(v + " available", 1800); update(); }
+                else view.checkStatus("Up to date", 1800);
+            });
+        }, "update-check-now");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** Gear: opens Settings & about; a second tap goes back to where you were (Simple, or the Detail page). */
+    private boolean settingsFromSimple;
+    @Override public void openSettings() {
+        if (view.onSettings()) {
+            if (settingsFromSimple) { prefs().edit().putBoolean("detail", false).apply(); view.setDetail(false); }
+            view.leaveSettings();
+            return;
+        }
+        settingsFromSimple = !prefs().getBoolean("detail", false);
+        view.showPage(ScreenView.FEEDBACK_PAGE);
+        if (settingsFromSimple) {
+            prefs().edit().putBoolean("detail", true).apply();
+            view.setDetail(true);
+        }
+    }
 
     @Override public void toggleMode() {
         boolean d = !prefs().getBoolean("detail", false);

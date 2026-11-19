@@ -24,7 +24,7 @@ public final class KeepOnTopService extends Service implements Runnable {
     static volatile boolean suspended = false;
 
     private static final String CHANNEL = "stay_in_front";
-    private static final long WINDOW_MS = 4000, RETURN_DELAY_MS = 1500;
+    private static final long WINDOW_MS = 4000, RETURN_DELAY_MS = 500;   // 1.0.10: 1500 -> 500 (Michael: faster)
 
     private volatile boolean running;
     private Thread thread;
