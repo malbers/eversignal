@@ -43,7 +43,7 @@ I always wanted to know what my DMP-A6 actually sends to my DAC. Is that TIDAL t
 
 | The stock player screen | The same track in EverSignal |
 |---|---|
-| ![Stock Eversolo player](docs/screenshots/0-stock-player.jpg) | ![EverSignal Simple](docs/screenshots/1-simple-v102-192.jpg) |
+| ![Stock Eversolo player](docs/screenshots/0-stock-player-v1011.jpg) | ![EverSignal Simple](docs/screenshots/1-simple-v1011.jpg) |
 
 ## What people are saying
 
