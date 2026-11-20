@@ -28,8 +28,8 @@ public class FeedbackLinkTest {
     }
 
     @Test public void detailsSkipBlankParts() {
-        String d = FeedbackLink.details("1.0.3", "DMP-A6", null, "1.6.15", "", "1280 x 720 px", null);
-        assertEquals("EverSignal 1.0.3 | model: DMP-A6 | firmware: 1.6.15 | screen: 1280 x 720 px", d);
+        String d = FeedbackLink.details("1.0.3", "DMP-A6", null, "1.6.15", "", "1280 x 720 px, 213 dpi", null);
+        assertEquals("EverSignal 1.0.3 | model DMP-A6 | screen 1280x720 213dpi", d);
     }
 
     @Test public void urlPrefillsOnlyWhatIsKnown() {
@@ -37,12 +37,24 @@ public class FeedbackLinkTest {
         assertTrue(u.startsWith(FeedbackLink.FORM + "?usp=pp_url"));
         assertFalse(u.contains("entry." + FeedbackLink.ENTRY_MODEL + "="));
         assertTrue(u.contains("&entry." + FeedbackLink.ENTRY_FIRMWARE + "=1.6.15"));
-        assertTrue(u.contains("&entry." + FeedbackLink.ENTRY_DETAILS + "=EverSignal%201.0.3%20%7C%20model%3A%20DMP-A6"));
-        assertFalse(u.contains("+"));
+        assertTrue(u.contains("&entry." + FeedbackLink.ENTRY_DETAILS + "=EverSignal+1.0.3+%7C+model%3A+DMP-A6"));
     }
 
     @Test public void modelChoiceWithSpacesIsEncoded() {
         String u = FeedbackLink.url("DMP-A6 (Gen 1)", null, null);
-        assertTrue(u.endsWith("&entry." + FeedbackLink.ENTRY_MODEL + "=DMP-A6%20%28Gen%201%29"));
+        assertTrue(u.endsWith("&entry." + FeedbackLink.ENTRY_MODEL + "=DMP-A6+%28Gen+1%29"));
+    }
+
+    @Test public void detailsDropDuplicateDisplayModelAndAddUpdate() {
+        String d = FeedbackLink.details("1.0.11", "DMP-A6", "DMP-A6", "1.6.15", "11", null, "1776 x 1080 px", "1.0.11 failed 1006");
+        assertEquals("EverSignal 1.0.11 | model DMP-A6 | Android 11 | app 1776x1080 | update 1.0.11 failed 1006", d);
+    }
+
+    /** Q2 (2026-11-19): a full real-world link (with an update line) must fit QR version 12 at level L, 65x65 modules; 1.0.10 was 81x81. */
+    @Test public void fullLinkStaysShort() {
+        String d = FeedbackLink.details("1.0.11", "DMP-A6", "DMP-A6 Master Gen 2", "v1.6.15", "11",
+            "1920 x 1080 px, 320 dpi", "1776 x 1080 px", "1.0.11 failed 1006");
+        String u = FeedbackLink.url("DMP-A6 Master Edition", "v1.6.15", d);
+        assertTrue(u.length() + " chars", u.length() <= 367);
     }
 }

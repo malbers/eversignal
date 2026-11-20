@@ -259,4 +259,13 @@ public class TrackTest {
         assertEquals("/storage/FEFD-FF57/a.flac", Poller.hideToken("/storage/FEFD-FF57/a.flac"));
         assertNull(Poller.hideToken(null));
     }
+
+    /** AirPlay AAC from an iPhone, captured 2026-11-19: the A6 reports 16 bits (the Eversolo's own screen shows "16 bit"). */
+    @Test public void airplayAacShowsSixteenBit() throws Exception {
+        Track t = load("airplay-aac");
+        assertTrue(t.lossy);
+        assertEquals(Track.Badge.LOSSY, t.badge);
+        assertEquals(16.0, t.bits, 0.0);
+        assertEquals("16bit/44.1kHz", t.formatShort);
+    }
 }

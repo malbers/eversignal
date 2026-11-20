@@ -131,7 +131,7 @@ Each page scrolls. Top and scrolled views:
 3. **Open EverSignal** from the **Apps** tab.
 4. **Watch the stats.** Play/pause, next and previous work right there, and the Eversolo's own controls keep working as normal.
 
-**Stay in front** (the switch on the Settings & about page, behind the gear): starting a track from the Eversolo phone app or connecting AirPlay makes the Eversolo jump to its own player screen. With Stay in front on, EverSignal comes back by itself a moment later. Music you start from the player's own file browser or library doesn't trigger it, because you left EverSignal yourself to go there. The first time, Android asks you to allow **Display over other apps**; turn it on, go back, and tap Stay in front again. The Back button always turns it off, so the app can never trap the screen.
+**Stay in front** (the switch on the Settings & about page, behind the gear): starting a track from the Eversolo phone app or connecting AirPlay makes the Eversolo jump to its own player screen. With Stay in front on, EverSignal comes back by itself a moment later. Music you start from the player's own file browser or library doesn't trigger it, because you left EverSignal yourself to go there. The first time, Android asks you to allow **Display over other apps**; turn it on, go back, and tap Stay in front again. It stays on until you switch it off, also when you leave with Back. It never traps the screen: it only comes back after you start music from the phone app or AirPlay.
 
 ### What devices does it work on?
 
@@ -253,6 +253,14 @@ From 1.0.10, tapping the Update pill shows what's new in that version first, the
 **Want the update right now?** Tap the **gear**, then **Check for updates**. (On 1.0.9 or earlier: long-press **EverSignal** in Apps, choose **Clear data**, then open the app. It checks again straight away and the **Update** pill shows up. Clearing data only resets EverSignal itself: Simple or Detail, Stay in front, and today's listening stats. Nothing on your player changes.)
 
 ## What's new
+
+**1.0.11** (19 November 2026)
+- **Updating is clearer:** while an update downloads you see its progress, also on Settings › Check for updates. If it fails you see why (for example "not enough space"), and a download that stops moving is cancelled after a minute instead of hanging. Thanks to Coffee Majkel.
+- **EQ the way the Eversolo really does it:** the Eversolo only applies EQ to its own player, stereo PCM up to 192 kHz. For DSD, multichannel, higher sample rates and AirPlay or casts it passes the music through untouched, so EverSignal now says **EQ skipped** there. Thanks to Pierre C.
+- **AAC shows 16-bit**, the same as the Eversolo's own screen.
+- **Stay in front stays on** when you leave with Back. Only the switch turns it off, and only a tap on the switch itself counts.
+- **Bigger QR code blocks** on the Feedback page, easier for a phone to read.
+- Covers: if the player first says a track has no cover, EverSignal asks again a couple of times before giving up.
 
 **1.0.10** (18 November 2026)
 - New **Settings & about** page: tap the **gear** at the top (tap it again to go back). It has your version, **Check for updates**, **Release notes**, the **Stay in front** switch, **Reset** for today's listening stats, and the feedback QR code. The swipe pages are back to the five stats pages.

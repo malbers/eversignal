@@ -137,7 +137,8 @@ public final class Track {
             t.m4a = true;
         }
         if (t.dsd && t.bits == null) t.bits = 1.0;
-        if (t.lossy) t.bits = null; // MP3 reports 0; never show "0 bit"
+        // 1.0.11: lossy no longer blanks the depth. MP3 reports 0, which Flat.pos already drops ("0 bit" never shows);
+        // AirPlay AAC reports a real 16 (the decoder's output), the same as the Eversolo's own screen (Michael, 2026-11-19).
 
         // output
         if (outputSettled) {
@@ -201,12 +202,34 @@ public final class Track {
         return changed;
     }
 
+    /**
+     * 1.0.11: whether the EQ actually changes the sound. The A6's own EQ screen (read 2026-11-19): "The EQ function
+     * takes effect when the input source is the Internal player and the output sampling rate is lower than 192kHz
+     * stereo PCM. All stereo, all multi-channel, and DSD audio with a sampling rate higher than 192kHz will be output
+     * by Bypass." Measured the same day: DSD128 native with EQ on, no audible change. Exactly 192 kHz is counted as
+     * EQ applied until measured (the text reads both ways there; wrongly claiming Bit-perfect is the worse error).
+     */
+    static final double EQ_MAX_HZ = 192000;
+    boolean eqApplied() {
+        if (!eq || !ownPlayer) return false;
+        if (outCodec == null || isDsdCodec(outCodec)) return false;
+        if (outRateHz != null && outRateHz > EQ_MAX_HZ + 1) return false;
+        if (channels != null && channels > 2) return false;
+        return true;
+    }
+
+    /** EQ switched on, but bypassed for this stream. */
+    boolean eqSkipped() { return eq && !eqApplied(); }
+
     void computeBadge(boolean settled) {
+        boolean eq = eqApplied();   // from here on, "eq" means the EQ really changes the samples
         String in = rateCompact(rateHz);
         String out = outCodec == null ? null : (isDsdCodec(outCodec) ? outCodec.replace(" ", "") : outCodec + " " + rateCompact(outRateHz));
         if (dsd && outCodec != null && isDsdCodec(outCodec)) {
             badge = Badge.DSD_NATIVE; badgeText = "DSD native";
             badgeNote = dsdName(rateHz) + " in → " + outCodec.replace(" ", "") + " out";
+            // EQ lit + "DSD native" read as a bug (Pierre C.); the player bypasses EQ for DSD, so say so
+            if (eqSkipped()) badgeNote += " · EQ skipped";
         } else if (dsd && outCodec != null) {
             badge = Badge.DSD_TO_PCM; badgeText = "DSD → PCM";
             badgeNote = dsdName(rateHz) + " in → " + out + " out";
@@ -226,7 +249,7 @@ public final class Track {
                 badgeNote = "digital volume changes the samples";
             } else if (same && !eq && !dsp) {
                 badge = Badge.BIT_PERFECT; badgeText = "Bit-perfect";
-                badgeNote = in + " in = " + rateCompact(outRateHz) + " out";
+                badgeNote = in + " in = " + rateCompact(outRateHz) + " out" + (eqSkipped() ? " · EQ skipped" : "");
             } else if (!same) {
                 badge = Badge.RESAMPLED; badgeText = "Resampled";
                 badgeNote = in + " in → " + rateCompact(outRateHz) + " out";

@@ -9,7 +9,7 @@ import org.junit.Test;
 public class ReleaseNotesTest {
     @Test public void bundledNotesStartAtNewestAndReachBack() {
         List<String> all = ReleaseNotes.all();
-        assertTrue(all.get(0).startsWith("# 1.0.10"));
+        assertTrue(all.get(0).startsWith("# 1.0.11"));
         assertTrue(all.stream().anyMatch(l -> l.startsWith("# 1.0.2 ")));
         assertTrue(all.stream().allMatch(l -> l.startsWith("# ") || l.startsWith("• ")));
     }

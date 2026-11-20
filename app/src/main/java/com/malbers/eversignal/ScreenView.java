@@ -158,6 +158,9 @@ public final class ScreenView extends View {
     private String update;
     private int updateColor = GREEN;
     public void setUpdate(String text, int color) { update = text; updateColor = color; invalidate(); }
+    /** 1.0.11: last update download outcome ("1.0.11 failed 1006"), carried in the feedback QR. */
+    private String downloadDiag;
+    public void setDownloadDiag(String d) { downloadDiag = d; }
     static final int UPDATE_OFFER = 0xFF5FD08B, UPDATE_BUSY = 0xFFD9B48A, UPDATE_FAILED = 0xFFE8806A;
 
     /** Pill with the label inside; tap runs actions.update(). Width is capped so it can't reach the credit. */
@@ -364,7 +367,7 @@ public final class ScreenView extends View {
         else { out = t.outCodec; o1 = t.outRateHz == null ? "" : Track.rateText(t.outRateHz, false); }
         return new String[][]{
             {"SOURCE", src, s1, s2},
-            {"PROCESSING", t.eq ? "EQ on" : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
+            {"PROCESSING", t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
             {"OUTPUT", out, o1, ""},
             {"PORT", t.iface == null ? "…" : t.iface, t.iface == null ? "" : (t.analogPort() ? "analog out" : "digital out"), ""},
         };
@@ -779,7 +782,7 @@ public final class ScreenView extends View {
         ry = row1(c, "DSD", t.dsd ? (t.outCodec == null ? null : Track.isDsdCodec(t.outCodec) ? "Native" : "Converted") : null, ix, ry, iw);
         ry = row1(c, "SACD area", t.sacdArea, ix, ry, iw);
         ry = divider(c, ix, ry, iw);
-        ry = row1(c, "EQ", t.eq ? "On" : "Off", ix, ry, iw);
+        ry = row1(c, "EQ", t.eq ? (t.eqApplied() ? "On" : "On, bypassed") : "Off", ix, ry, iw);
         ry = row1(c, "DSP", t.dsp ? "On" : "Off", ix, ry, iw);
         ry = row1(c, "Subwoofer", t.sub ? "On" : "Off", ix, ry, iw);
         ry = divider(c, ix, ry, iw);
@@ -1518,12 +1521,12 @@ public final class ScreenView extends View {
         String model = v(m, "model"), dis = v(m, "disModel"), fw = v(m, "firmware");
         String choice = FeedbackLink.modelChoice(dis, model);
         String screen = screenSize();
-        String details = FeedbackLink.details(BuildConfig.VERSION_NAME, model, dis, fw, v(m, "androidversion"), screen, appArea());
+        String details = FeedbackLink.details(BuildConfig.VERSION_NAME, model, dis, fw, v(m, "androidversion"), screen, appArea(), downloadDiag);
         String url = FeedbackLink.url(choice, fw, details);
 
         // 1.0.10: Settings & about, rebuilt from Michael's design handoff (2026-11-18): two panels, no scrolling.
         // Left "EverSignal": version + Check for updates / Release notes, Stay in front switch, today's stats Reset.
-        // Right "Feedback": title, what the code fills in, privacy line pinned at the bottom, QR 210 vertically centred.
+        // Right "Feedback": title, what the code fills in, privacy line pinned at the bottom, QR vertically centred (210 in 1.0.10, 250 from 1.0.11).
         long now = System.currentTimeMillis();
         float top = 70, bottom = 444, ph = bottom - top;
         float rw = 492, rx = vw - 14 - rw, lx0 = 16, lw = rx - 8 - lx0;
@@ -1558,7 +1561,9 @@ public final class ScreenView extends View {
         roundRect(c, swX, swY, swW, swH, swH / 2, stayOn ? CHIP_GREEN : 0x33FFFFFF);
         p.reset(); p.setAntiAlias(true); p.setColor(LIGHT);
         c.drawCircle(X(stayOn ? swX + swW - 3 - 11 : swX + 3 + 11), Y(swY + swH / 2), 11 * s, p);
-        hit(ix, rowTop, iw, rowBottom - rowTop, actions::toggleStay);
+        // 1.0.11: only the switch (plus a margin, 44 tall minimum) toggles. The whole row used to, and Michael kept
+        // turning it off by accident while tapping near it (2026-11-19).
+        hit(swX - 12, swY + swH / 2 - 22, swW + 24, 44, actions::toggleStay);
         y = rowBottom;
         divider(c, ix, y, iw);
 
@@ -1581,7 +1586,7 @@ public final class ScreenView extends View {
 
         // ---------------- right panel
         panel(c, "Feedback", rx, top, rw, ph);
-        float qs = 210, qx = rx + rw - 14 - qs, qy = top + (ph - qs) / 2;
+        float qs = 250, qx = rx + rw - 14 - qs, qy = top + (ph - qs) / 2;
         float fx = rx + 14, fcw = qx - 16 - fx, fy = top + 27 + 2;
         for (String line : wrap("Found a bug, or got it working on your model?", 18, hanken600, fcw)) {
             text(c, line, fx, fy + 17, 18, hanken600, LIGHT, fcw + 4);
@@ -1621,10 +1626,16 @@ public final class ScreenView extends View {
         roundRect(c, qx, qy, qs, qs, 12, Color.WHITE);
         Bitmap b = qrBitmap(url);
         if (b != null) {
-            float pad = 12;
+            // 1.0.11 (Q2): every module the same whole number of screen pixels, centred in the white box.
+            // 1.0.10 stretched the bitmap to a fractional size, so blocks came out unevenly 2 and 3 pixels wide.
+            float pad = 10;
+            float innerPx = (qs - 2 * pad) * s;
+            int mod = Math.max(1, (int) Math.floor(innerPx / b.getWidth()));
+            float sizePx = mod * b.getWidth();
+            float left = (float) Math.floor(X(qx + qs / 2f) - sizePx / 2f), topPx = (float) Math.floor(Y(qy + qs / 2f) - sizePx / 2f);
             Paint qp = new Paint();
             qp.setFilterBitmap(false); qp.setAntiAlias(false);
-            c.drawBitmap(b, null, new RectF(X(qx + pad), Y(qy + pad), X(qx + qs - pad), Y(qy + qs - pad)), qp);
+            c.drawBitmap(b, null, new RectF(left, topPx, left + sizePx, topPx + sizePx), qp);
         } else {
             drawCentered(c, "QR code unavailable", qx, qy, qs, qs, 13, hanken500, DARK_TEXT);
         }
@@ -1645,7 +1656,7 @@ public final class ScreenView extends View {
         try {
             Map<com.google.zxing.EncodeHintType, Object> hints = new java.util.EnumMap<>(com.google.zxing.EncodeHintType.class);
             hints.put(com.google.zxing.EncodeHintType.MARGIN, 0);
-            hints.put(com.google.zxing.EncodeHintType.ERROR_CORRECTION, com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.M);
+            hints.put(com.google.zxing.EncodeHintType.ERROR_CORRECTION, com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.L);
             com.google.zxing.common.BitMatrix mx = new com.google.zxing.qrcode.QRCodeWriter()
                 .encode(url, com.google.zxing.BarcodeFormat.QR_CODE, 0, 0, hints);
             int w = mx.getWidth(), h = mx.getHeight();

@@ -15,6 +15,13 @@ public final class ReleaseNotes {
 
     /** {version, date, bullet...}, newest first. Add the new release at the top on every version bump. */
     static final String[][] NOTES = {
+        {"1.0.11", "2026-11-19",
+            "Updating is clearer: you see the download's progress, also on Settings, and the reason if it fails. A download that stops moving is cancelled after a minute.",
+            "EQ the way the Eversolo really does it: it only applies EQ to its own player, stereo PCM up to 192 kHz. For DSD, multichannel, higher rates and AirPlay or casts, EverSignal now says EQ skipped.",
+            "AAC shows 16-bit, the same as the Eversolo's own screen.",
+            "Stay in front stays on when you leave with Back. Only the switch turns it off, and only a tap on the switch itself counts.",
+            "Bigger QR code blocks on the Feedback page.",
+            "Covers: if the player first says a track has no cover, EverSignal asks again before giving up."},
         {"1.0.10", "2026-11-18",
             "New Settings & about page: tap the gear at the top (tap it again to go back).",
             "On it: your version, these release notes, Check for updates, the Stay in front switch, Reset today's listening stats, and the feedback QR code. The swipe pages are back to the five stats pages.",

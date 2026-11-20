@@ -45,18 +45,32 @@ final class FeedbackLink {
     /** One line for the "Device details" question. Blank parts are left out. */
     static String details(String appVersion, String model, String disModel, String firmware, String android,
                           String screen, String appArea) {
+        return details(appVersion, model, disModel, firmware, android, screen, appArea, null);
+    }
+
+    /**
+     * 1.0.11: compact on purpose, the whole link is the QR code and every character makes its blocks smaller
+     * (1.0.10's ~430-character link = 81x81 modules). Firmware is left out here because it has its own form
+     * field; sizes lose their spaces ("1920x1080 320dpi"). Plus the last in-app update download outcome, if any.
+     */
+    static String details(String appVersion, String model, String disModel, String firmware, String android,
+                          String screen, String appArea, String lastUpdate) {
         StringBuilder b = new StringBuilder("EverSignal ").append(appVersion);
         part(b, "model", model);
-        part(b, "display model", disModel);
-        part(b, "firmware", firmware);
+        if (disModel != null && !disModel.trim().equalsIgnoreCase(model == null ? "" : model.trim())) part(b, "display", disModel);
         part(b, "Android", android);
-        part(b, "screen", screen);
-        part(b, "app area", appArea);
+        part(b, "screen", compact(screen));
+        part(b, "app", compact(appArea));
+        part(b, "update", lastUpdate);
         return b.toString();
     }
 
+    static String compact(String v) {
+        return v == null ? null : v.replace(" x ", "x").replace(" px", "").replace(" dpi", "dpi").replace(", ", " ");
+    }
+
     private static void part(StringBuilder b, String k, String v) {
-        if (v != null && !v.trim().isEmpty()) b.append(" | ").append(k).append(": ").append(v.trim());
+        if (v != null && !v.trim().isEmpty()) b.append(" | ").append(k).append(' ').append(v.trim());
     }
 
     static String url(String modelChoice, String firmware, String details) {
@@ -73,10 +87,10 @@ final class FeedbackLink {
     }
 
     private static String enc(String v) {
-        // Forms reads %20 and + alike; %20 keeps the QR payload unambiguous.
+        // Forms reads %20 and + alike; 1.0.11 uses + (one character, not three) to keep the QR code small.
         // (The Charset overload is API 33+; the String one works on the A6's Android 11.)
         try {
-            return URLEncoder.encode(v, "UTF-8").replace("+", "%20");
+            return URLEncoder.encode(v, "UTF-8");
         } catch (java.io.UnsupportedEncodingException e) {
             throw new AssertionError(e);
         }

@@ -11,7 +11,7 @@ public class BadgeInfoTest {
 
     private static Track pcm(double in, double out, boolean eq, boolean volOk) {
         Track t = new Track();
-        t.rateHz = in; t.outRateHz = out; t.outCodec = "PCM"; t.eq = eq; t.volumeOk = volOk; t.volume = volOk ? "0dB" : "-12dB";
+        t.ownPlayer = true; t.rateHz = in; t.outRateHz = out; t.outCodec = "PCM"; t.eq = eq; t.volumeOk = volOk; t.volume = volOk ? "0dB" : "-12dB";
         t.computeBadge(true);
         return t;
     }
@@ -85,5 +85,49 @@ public class BadgeInfoTest {
         Track t = pcm(44100, 44100, false, true);
         List<String> l = BadgeInfo.lines(t);
         assertEquals("Tap anywhere to close.", l.get(l.size() - 1));
+    }
+
+    private static Track dsd(String outCodec, boolean eq) {
+        Track t = new Track();
+        t.dsd = true; t.rateHz = 5644800.0; t.outCodec = outCodec; t.outRateHz = "PCM".equals(outCodec) ? 176400.0 : 5644800.0;
+        t.eq = eq; t.volumeOk = true; t.volume = "0dB";
+        t.computeBadge(true);
+        return t;
+    }
+
+    /** Pierre C., 2026-11-19: EQ on + DSD native looked like a bug. Measured: the A6 skips EQ for native DSD. */
+    @Test public void dsdNativeWithEqSaysEqIsSkipped() {
+        Track t = dsd("DSD128", true);
+        assertEquals(Track.Badge.DSD_NATIVE, t.badge);
+        assertTrue(t.badgeNote, t.badgeNote.endsWith("· EQ skipped"));
+        assertTrue(all(BadgeInfo.lines(t)).contains(BadgeInfo.EQ_BYPASS));
+        Track off = dsd("DSD128", false);
+        assertFalse(off.badgeNote.contains("EQ"));
+        assertFalse(all(BadgeInfo.lines(off)).contains("EQ"));
+    }
+
+    /** The Eversolo's EQ screen: EQ only applies to its own player, stereo PCM, below 192 kHz. */
+    @Test public void eqBypassRules() {
+        Track hi = pcm(352800, 352800, true, true);
+        assertEquals(Track.Badge.BIT_PERFECT, hi.badge);
+        assertTrue(hi.badgeNote.endsWith("· EQ skipped"));
+        assertTrue(all(BadgeInfo.lines(hi)).contains(BadgeInfo.EQ_BYPASS));
+
+        assertEquals(Track.Badge.EQ_ACTIVE, pcm(96000, 96000, true, true).badge);
+        assertEquals(Track.Badge.EQ_ACTIVE, pcm(192000, 192000, true, true).badge);   // 192 itself: applied until measured
+
+        Track cast = new Track();
+        cast.rateHz = 96000.0; cast.outRateHz = 96000.0; cast.outCodec = "PCM"; cast.eq = true; cast.volumeOk = true; cast.volume = "0dB";
+        cast.computeBadge(true);
+        assertEquals(Track.Badge.BIT_PERFECT, cast.badge);   // not the internal player: bypassed
+
+        Track mc = pcm(48000, 48000, true, true);
+        mc.channels = 6.0; mc.computeBadge(true);
+        assertEquals(Track.Badge.BIT_PERFECT, mc.badge);
+        assertFalse(pcm(96000, 96000, false, true).badgeNote.contains("EQ"));
+    }
+
+    @Test public void dsdToPcmMakesNoEqClaim() {
+        assertFalse(all(BadgeInfo.lines(dsd("PCM", true))).contains("EQ off"));
     }
 }

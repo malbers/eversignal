@@ -12,6 +12,10 @@ import java.util.List;
 final class BadgeInfo {
     private BadgeInfo() {}
 
+    /** 1.0.11, from the Eversolo's own EQ screen. */
+    static final String EQ_BYPASS = "EQ is switched on, but the Eversolo bypasses it here: it only applies to its own "
+        + "player, stereo PCM below 192 kHz. DSD, multichannel, higher rates and AirPlay/casts go through untouched.";
+
     static List<String> lines(Track t) {
         List<String> l = new ArrayList<>();
         String note = t.badgeNote == null || t.badgeNote.isEmpty() ? null : t.badgeNote;
@@ -19,6 +23,7 @@ final class BadgeInfo {
             case BIT_PERFECT:
                 l.add("Bit-perfect: the player passes the music to its output unchanged.");
                 if (note != null) l.add(note);
+                if (t.eqSkipped()) l.add(EQ_BYPASS);
                 l.add("Shown when all of these are true:");
                 l.add("•  PCM out at the source's own sample rate (no resampling)");
                 l.add("•  EQ off and DSP off");
@@ -33,7 +38,7 @@ final class BadgeInfo {
                 checklist(l, t);
                 break;
             case EQ_ACTIVE:
-                l.add((t.eq ? "EQ active" : "DSP active") + ": a sound effect is changing the samples.");
+                l.add((t.eqApplied() ? "EQ active" : "DSP active") + ": a sound effect is changing the samples.");
                 if (note != null) l.add(note);
                 checklist(l, t);
                 break;
@@ -46,6 +51,7 @@ final class BadgeInfo {
                 l.add("DSD native: the DSD file goes out as DSD, untouched.");
                 if (note != null) l.add(note);
                 l.add("This is DSD's version of Bit-perfect.");
+                if (t.eqSkipped()) l.add(EQ_BYPASS);
                 break;
             case DSD_TO_PCM:
                 l.add("DSD → PCM: the DSD file is converted to PCM on the way out.");
@@ -96,7 +102,9 @@ final class BadgeInfo {
         boolean same = t.rateHz != null && t.outRateHz != null && Math.abs(t.outRateHz - t.rateHz) < 1;
         l.add(same ? "•  OK: same sample rate in and out"
                    : "•  Fix: turn off upsampling or the fixed output rate, so the rate stays the same");
-        l.add(!t.eq && !t.dsp ? "•  OK: EQ and DSP off" : "•  Fix: turn " + (t.eq && t.dsp ? "EQ and DSP" : t.eq ? "EQ" : "DSP") + " off");
+        boolean eq = t.eqApplied();
+        l.add(!eq && !t.dsp ? (t.eqSkipped() ? "•  OK: EQ bypassed, DSP off" : "•  OK: EQ and DSP off")
+            : "•  Fix: turn " + (eq && t.dsp ? "EQ and DSP" : eq ? "EQ" : "DSP") + " off");
     }
 
     /** Drawn in the warning colour by ScreenView.drawInfo (one sentence; the panel wraps it). */

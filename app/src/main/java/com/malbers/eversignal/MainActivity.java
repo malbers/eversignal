@@ -34,6 +34,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         api = new Api(host());
         view = new ScreenView(this, this);
+        view.setDownloadDiag(prefs().getString("dl_diag", null));
         view.setDetail(prefs().getBoolean("detail", false));
         view.setStayOn(stayOn());
         setContentView(view);
@@ -71,6 +72,9 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     private static final String USER_AGENT = "EverSignal/" + BuildConfig.VERSION_NAME + " ( https://youtube.com/@malbers )";
     private long downloadId = -1;
     private String downloadState; // null, "running", "done", "failed"
+    /** 1.0.11: the words after the state: "42%", "waiting for network", "not enough space", "stalled". */
+    private String downloadDetail;
+    private DownloadStatus.Stall stall;
 
     /** At most once a day, ask GitHub for the latest release; the answer is kept for the pill. */
     private void checkForUpdate() {
@@ -98,10 +102,16 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     private void showUpdate() {
         String v = newerVersion();
         if (v == null) { view.setUpdate(null, 0); return; }
-        if ("running".equals(downloadState)) view.setUpdate("Downloading " + v + "…", ScreenView.UPDATE_BUSY);
+        String d = downloadDetail == null ? "" : " · " + downloadDetail;
+        if ("running".equals(downloadState)) view.setUpdate("Downloading " + v + d, ScreenView.UPDATE_BUSY);
         else if ("done".equals(downloadState)) view.setUpdate("Saved · install it from Files › Storage › Download", ScreenView.UPDATE_OFFER);
-        else if ("failed".equals(downloadState)) view.setUpdate("Download failed · tap to try again", ScreenView.UPDATE_FAILED);
+        else if ("failed".equals(downloadState)) view.setUpdate("Download failed" + d + " · tap to try again", ScreenView.UPDATE_FAILED);
         else view.setUpdate("Update " + v + " available · Download", ScreenView.UPDATE_OFFER);
+        // 1.0.11: the same state on Settings' Check for updates button. 1.0.10 started downloads there but only
+        // the Simple pill ever said what happened, and the Eversolo has no notification shade.
+        if ("running".equals(downloadState)) view.checkStatus(downloadDetail == null ? "Downloading…" : "Downloading " + downloadDetail, 3000);
+        else if ("done".equals(downloadState)) view.checkStatus("Saved to Download", 10000);
+        else if ("failed".equals(downloadState)) view.checkStatus("Failed: " + downloadDetail, 10000);
     }
 
     /**
@@ -138,30 +148,73 @@ public class MainActivity extends Activity implements ScreenView.Actions {
                 .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "EverSignal-" + v + ".apk");
             downloadId = dm.enqueue(req);
         } catch (Exception e) {
+            // Android's download service is missing or switched off on this player: try a browser instead
+            saveDiag(DownloadStatus.diag(v, "no-dm", 0));
             try {
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             } catch (Exception ignored) {
-                downloadState = "failed";
-                showUpdate();
+                finishDownload("failed", "no download service", null);
             }
             return;
         }
         downloadState = "running";
+        downloadDetail = null;
+        stall = new DownloadStatus.Stall(System.currentTimeMillis());
         showUpdate();
-        pollDownload(dm);
+        pollDownload(dm, v);
     }
 
-    private void pollDownload(DownloadManager dm) {
+    private void pollDownload(DownloadManager dm, String v) {
         ui.postDelayed(() -> {
-            int status = -1;
+            int status = -1, reason = 0;
+            long bytes = 0, total = -1;
             try (Cursor c = dm.query(new DownloadManager.Query().setFilterById(downloadId))) {
-                if (c != null && c.moveToFirst()) status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                if (c != null && c.moveToFirst()) {
+                    status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                    reason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                    bytes = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                }
             } catch (Exception ignored) { }
-            if (status == DownloadManager.STATUS_SUCCESSFUL) downloadState = "done";
-            else if (status == DownloadManager.STATUS_FAILED || status == -1) downloadState = "failed";
-            else { pollDownload(dm); return; }
+            if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                finishDownload("done", null, DownloadStatus.diag(v, "ok", 0));
+                view.toast("Saved. Open Files › Storage › Download and tap EverSignal-" + v + ".apk");
+                return;
+            }
+            if (status == DownloadManager.STATUS_FAILED) {
+                finishDownload("failed", DownloadStatus.failReason(reason), DownloadStatus.diag(v, "failed", reason));
+                return;
+            }
+            if (status == -1) {   // the download vanished (cancelled, or the service lost it)
+                finishDownload("failed", "cancelled", DownloadStatus.diag(v, "gone", 0));
+                return;
+            }
+            if (stall.stalled(bytes, System.currentTimeMillis())) {
+                try { dm.remove(downloadId); } catch (Exception ignored) { }
+                String why = DownloadStatus.waitReason(status, reason);
+                finishDownload("failed", why == null ? "stalled" : "stalled, " + why,
+                    DownloadStatus.diag(v, "stalled", status == DownloadManager.STATUS_PAUSED ? reason : 0));
+                return;
+            }
+            String wait = DownloadStatus.waitReason(status, reason);
+            downloadDetail = wait != null ? wait : DownloadStatus.progress(bytes, total);
             showUpdate();
+            pollDownload(dm, v);
         }, 500);
+    }
+
+    /** Ends a download: state for the pill + Settings button, a toast on failure, and the one-line diag for the QR. */
+    private void finishDownload(String state, String detail, String diag) {
+        downloadState = state;
+        downloadDetail = detail;
+        if (diag != null) saveDiag(diag);
+        if ("failed".equals(state)) view.toast("Download failed: " + detail + ". Get it from github.com/malbers/eversignal");
+        showUpdate();
+    }
+
+    private void saveDiag(String diag) {
+        prefs().edit().putString("dl_diag", diag).apply();
+        view.setDownloadDiag(diag);
     }
 
     @Override protected void onResume() {
@@ -185,9 +238,11 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         super.onDestroy();
     }
 
-    /** Back always turns Stay in front off and leaves, so the app can never trap the screen. */
+    /**
+     * 1.0.11: Back just leaves; Stay in front stays as set (Michael kept losing it by switching it on, then pressing
+     * Back). No trap: the app only returns after a phone-app or AirPlay start, and the switch turns it off.
+     */
     @Override public void onBackPressed() {
-        if (stayOn()) setStay(false);
         super.onBackPressed();
     }
 

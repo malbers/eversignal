@@ -9,7 +9,7 @@ import org.junit.Test;
 public class OutputHoldTest {
 
     private static Track wav96(int state, double outRate, boolean eq) {
-        Track t = new Track();
+        Track t = new Track(); t.ownPlayer = true;   // a local WAV plays in the internal player (1.0.11 EQ rule)
         t.key = "own|1|Ashokan Farewell|Burr";
         t.state = state; t.rateHz = 96000.0; t.outCodec = "PCM"; t.outRateHz = outRate; t.eq = eq; t.volumeOk = true;
         t.computeBadge(true);

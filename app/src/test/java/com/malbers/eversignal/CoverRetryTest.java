@@ -23,12 +23,26 @@ public class CoverRetryTest {
         assertEquals(-1, r.take(100_000));
     }
 
-    @Test public void playerSaysNoArtIsFinal() {
+    /** 1.0.11: "no art" is asked twice more (5 s, 15 s) before it is final. */
+    @Test public void playerSaysNoArtIsFinalOnTheThirdAsk() {
         CoverRetry r = new CoverRetry();
         r.start(0);
         r.finish(r.take(0), CoverRetry.Outcome.NONE, 500);
+        assertTrue(r.pending());
+        assertEquals(-1, r.take(5_000));
+        r.finish(r.take(5_500), CoverRetry.Outcome.NONE, 6_000);
+        assertEquals(-1, r.take(20_000));
+        r.finish(r.take(21_000), CoverRetry.Outcome.NONE, 21_500);
         assertFalse(r.pending());
         assertEquals(-1, r.take(100_000));
+    }
+
+    @Test public void noArtThenArtShowsTheCover() {
+        CoverRetry r = new CoverRetry();
+        r.start(0);
+        r.finish(r.take(0), CoverRetry.Outcome.NONE, 500);
+        r.finish(r.take(5_500), CoverRetry.Outcome.OK, 6_000);
+        assertFalse(r.pending());
     }
 
     @Test public void aFailureRetriesAfterTheDelays() {
