@@ -173,6 +173,7 @@ If one of these is not true, the badge says which one (Resampled, EQ active, Vol
 ## What it never does
 
 - **Never writes.** No settings changed, no files written, moved or deleted, no library or tag edits.
+- **Reads only what the music needs (from 1.0.12):** with your OK, it reads the image files and lyrics files in the playing track's album folder (and one folder up for multi-disc sets), plus the art inside the playing file. Nothing else on your drive, and it never changes or deletes anything. Say no and EverSignal works as before.
 - **Only does what you tap:** play/pause, next, previous, VU meters, and opening the EQ app. Switching EQ on or off is yours to do, in the Eversolo's own screen.
 - **Stores almost nothing:** today's listening totals, Stay in front, the last update check. All in its own app storage.
 - **Talks only to your Eversolo.** Two exceptions: album covers load from the streaming service, and once a day it asks GitHub if there's a new version. That check sends nothing about you.
@@ -254,64 +255,74 @@ From 1.0.10, tapping the Update pill shows what's new in that version first, the
 
 ## What's new
 
+**1.0.12** (20 November 2026)
+- **Full-Screen Album Mode!** Tap the cover to see every picture for the album: front, back, inlay, booklet scans in a subfolder, even the art tucked inside your files. It flips through them on its own every 10 seconds, even while paused. Swipe to step through, tap to close. Dots show where you are, and a tiny **1/3** in the corner of the cover tells you there's more to see. Thanks to Václav H.
+- **Lyrics!** If a track has an `.lrc` file with the same name next to it, a **LYRICS** button appears in Full-Screen Album Mode and shows the words big, in time with the music. Thanks to Pierre C.
+- **Missing covers, fixed!** EverSignal now finds your covers itself, straight from the album folder: `cover.jpg`, `folder.jpg` or the art inside your files. Multi-disc sets with the cover one folder up work too. No more blank squares or generic music notes. Thanks to Václav H. and Pierre C.
+- **Channels on screen!** `24-bit · 2 ch`, `1-bit · 5 ch`, right on the Simple screen and in Full-Screen Album Mode.
+- **Framed covers!** A thin border in a colour picked from the art. Prefer it plain? Switch it off on Settings & about. Thanks to Václav H. for the idea.
+- **VU button, fixed!** It goes to the VU meters and stays there, no more bouncing back. Thanks to Pierre C.
+- **Stay in front, smoother!** Allow the permission once and it switches on by itself.
+- **One new permission:** EverSignal asks to read your files, so it can show the art in your album folders and your lyrics. It asks in the What's new screen, with the reason, never out of the blue. It only reads. It never changes or deletes anything.
+
 **1.0.11** (19 November 2026)
-- **Updating is clearer:** while an update downloads you see its progress, also on Settings › Check for updates. If it fails you see why (for example "not enough space"), and a download that stops moving is cancelled after a minute instead of hanging. Thanks to Coffee M.
-- **EQ the way the Eversolo really does it:** the Eversolo only applies EQ to its own player, stereo PCM up to 192 kHz. For DSD, multichannel, higher sample rates and AirPlay or casts it passes the music through untouched, so EverSignal now says **EQ skipped** there. Thanks to Pierre C.
-- **AAC shows 16-bit**, the same as the Eversolo's own screen.
-- **Stay in front stays on** when you leave with Back. Only the switch turns it off, and only a tap on the switch itself counts.
-- **Bigger QR code blocks** on the Feedback page, easier for a phone to read.
-- Covers: if the player first says a track has no cover, EverSignal asks again a couple of times before giving up.
+- **Clearer updates!** While an update downloads you see its progress, also on Settings › Check for updates. If it fails you see why (for example "not enough space"), and a download that stops moving is cancelled after a minute instead of hanging. Thanks to Coffee M.
+- **EQ, the way the Eversolo really does it!** The Eversolo only applies EQ to its own player, stereo PCM up to 192 kHz. For DSD, multichannel, higher sample rates and AirPlay or casts it passes the music through untouched, so EverSignal now says **EQ skipped** there. Thanks to Pierre C.
+- **AAC, matched!** It shows 16-bit, the same as the Eversolo's own screen.
+- **Stay in front, sticky!** It stays on when you leave with Back. Only a tap on the switch itself turns it off.
+- **Easier QR code!** Bigger blocks on the Feedback page, easier for a phone to read.
+- **More patient covers!** If the player first says a track has no cover, EverSignal asks again a couple of times before giving up.
 
 **1.0.10** (18 November 2026)
-- New **Settings & about** page: tap the **gear** at the top (tap it again to go back). It has your version, **Check for updates**, **Release notes**, the **Stay in front** switch, **Reset** for today's listening stats, and the feedback QR code. The swipe pages are back to the five stats pages.
-- **Stay in front** is now a real on/off switch (it used to hide at the bottom of Detail page 1), and it comes back faster after you start music from the Eversolo phone app or AirPlay.
-- **Release notes in the app:** after an update, EverSignal shows what's new once. Tapping the Update pill shows what's new in that version before you download.
-- Covers load in the background and retry if the player is slow to send them.
-- The Simple / Detail switch is a little narrower, so the track time always fits in the Detail header.
+- **Settings & about page!** Tap the **gear** at the top (tap it again to go back). It has your version, **Check for updates**, **Release notes**, the **Stay in front** switch, **Reset** for today's listening stats, and the feedback QR code. The swipe pages are back to the five stats pages.
+- **A real Stay in front switch!** It used to hide at the bottom of Detail page 1, and it now comes back faster after you start music from the Eversolo phone app or AirPlay.
+- **What's new, built in!** After an update, EverSignal shows what's new once. Tapping the Update pill shows what's new in that version before you download.
+- **Faster covers!** They load in the background and retry if the player is slow to send them.
+- **A tidier header!** The Simple / Detail switch is a little narrower, so the track time always fits in the Detail header.
 
 **1.0.9** (17 November 2026)
-- Neater Simple screen: the play controls sit centred on the whole screen, Up next moved under the cover, and the rows have a little more space between them.
+- **A neater Simple screen!** The play controls sit centred on the whole screen, Up next moved under the cover, and the rows have a little more space between them.
 
 **1.0.8** (17 November 2026)
-- Fixed: ALAC (Apple Lossless) .m4a files no longer show as Lossy. EverSignal now tells ALAC from AAC inside an .m4a, and shows the true rate for hi-res ALAC (the player reports a 96 kHz ALAC file as 48 kHz in one place). Thanks to Nic S. for reporting it.
-- While a new track settles, the badge shows a grey "Checking…" instead of a blank.
-- The play controls sit centred under the progress bar. Thanks to Bruce M.
-- The Bitrate tile reads in kbps / Mbps.
+- **Apple Lossless, fixed!** ALAC .m4a files no longer show as Lossy. EverSignal now tells ALAC from AAC inside an .m4a, and shows the true rate for hi-res ALAC (the player reports a 96 kHz ALAC file as 48 kHz in one place). Thanks to Nic S. for reporting it.
+- **"Checking…" badge!** While a new track settles, the badge shows a grey "Checking…" instead of a blank.
+- **Centred controls!** The play controls sit centred under the progress bar. Thanks to Bruce M.
+- **Readable bitrate!** The Bitrate tile reads in kbps / Mbps.
 
 **1.0.7** (17 November 2026)
-- Fixed: album covers now show for songs you start from the file browser (folders on your drive), not only from the Library. Thanks to Jaro S. and Giuseppe V. for reporting it.
+- **File browser covers, fixed!** Album covers now show for songs you start from the file browser (folders on your drive), not only from the Library. Thanks to Jaro S. and Giuseppe V. for reporting it.
 
 **1.0.6** (16 November 2026)
-- New **EQ** button next to VU: one tap opens the Eversolo's EQ screen, where you switch EQ on or off. It lights up like the EQ active badge when EQ is on.
-- Steadier badge: it only changes once the new verdict has held for two seconds, so switching EQ or starting an MQA file no longer flashes through in-between badges.
-- Fixed: pausing a file no longer shows "Resampled". While paused, the Eversolo reports a stand-in output (PCM 192 kHz), so EverSignal keeps showing what the track played at.
-- Passthrough warning: every badge panel that mentions volume passthrough now carries a red WARNING. Passthrough is full volume.
-- Fixed: the update hint now points to Files › Storage › Download.
+- **EQ button!** It sits next to VU: one tap opens the Eversolo's EQ screen, where you switch EQ on or off. It lights up like the EQ active badge when EQ is on.
+- **A steadier badge!** It only changes once the new verdict has held for two seconds, so switching EQ or starting an MQA file no longer flashes through in-between badges.
+- **Pause, fixed!** Pausing a file no longer shows "Resampled". While paused, the Eversolo reports a stand-in output (PCM 192 kHz), so EverSignal keeps showing what the track played at.
+- **Passthrough warning!** Every badge panel that mentions volume passthrough now carries a red WARNING. Passthrough is full volume.
+- **Update hint, fixed!** It now points to Files › Storage › Download.
 
 **1.0.5** (16 November 2026)
-- Tap the badge (Bit-perfect, Resampled, EQ active and the rest) to see what it means on your player right now. When you're not bit-perfect, it shows a live checklist of what to change, volume passthrough first, with a caution to turn your amp down before you do.
-- Fixed: SACD area showed Stereo when the Eversolo's Preferred SACD area was set to Multichannel. Thanks to a French DMP-A6 owner for the report through the feedback form.
+- **Tap the badge!** Bit-perfect, Resampled, EQ active and the rest: see what it means on your player right now. When you're not bit-perfect, it shows a live checklist of what to change, volume passthrough first, with a caution to turn your amp down before you do.
+- **SACD area, fixed!** It showed Stereo when the Eversolo's Preferred SACD area was set to Multichannel. Thanks to a French DMP-A6 owner for the report through the feedback form.
 
 **1.0.4** (16 November 2026)
-- Fits wider screens: on the DMP-T10's long display, EverSignal now uses the full width instead of leaving bands at the sides. Simple stretches the signal path and tiles; Detail shows three columns. The A6 looks the same as before. Thanks to Steve C.-H. for sending his T10's screen size.
-- Fixed: on models that list more inputs (the DMP-A6 Master Gen 2 has six), the Device panel on the first Detail page no longer runs its outputs into the "can do" line. Thanks to René G. C. for the report.
-- Mouse wheel: scroll the Detail pages with a mouse wheel (for example through the Eversolo's PC control in a browser); a sideways scroll changes page.
+- **Wider screens!** On the DMP-T10's long display, EverSignal now uses the full width instead of leaving bands at the sides. Simple stretches the signal path and tiles; Detail shows three columns. The A6 looks the same as before. Thanks to Steve C.-H. for sending his T10's screen size.
+- **Device panel, fixed!** On models that list more inputs (the DMP-A6 Master Gen 2 has six), the Device panel on the first Detail page no longer runs its outputs into the "can do" line. Thanks to René G. C. for the report.
+- **Mouse wheel!** Scroll the Detail pages with a mouse wheel (for example through the Eversolo's PC control in a browser); a sideways scroll changes page.
 
 **1.0.3** (16 November 2026)
-- New **Feedback** page, the last Detail page: scan the QR code with your phone to send a bug, an idea, or "it works on my model". It fills in your model, firmware and EverSignal version for you.
-- The **Device** page now shows the screen size and the area EverSignal gets, to help lay it out on other models (the T10's bigger screen is next).
+- **Feedback page!** The last Detail page: scan the QR code with your phone to send a bug, an idea, or "it works on my model". It fills in your model, firmware and EverSignal version for you.
+- **Screen size!** The **Device** page now shows the screen size and the area EverSignal gets, to help lay it out on other models (the T10's bigger screen is next).
 
 **1.0.2** (15 November 2026)
-- Bigger text, readable standing at the rack: Detail is drawn 1.8x larger in two columns, and every page scrolls (page 1 too).
-- Simple: smaller cover, larger signal path, tiles and badge line; second lines in green, labels in tan.
-- Larger Simple / Detail, VU and volume controls at the top right, easier to hit.
-- Up next shows the format on the same line; long values wrap under their label.
+- **Bigger everything!** Text readable standing at the rack: Detail is drawn 1.8x larger in two columns, and every page scrolls (page 1 too).
+- **A clearer Simple screen!** Smaller cover, larger signal path, tiles and badge line; second lines in green, labels in tan.
+- **Easier controls!** Larger Simple / Detail, VU and volume controls at the top right, easier to hit.
+- **Smarter Up next!** It shows the format on the same line; long values wrap under their label.
 
 **1.0.1** (15 November 2026)
-- Update check: once a day it asks GitHub for the latest release, and shows an Update pill when a newer one is out. Tap it to download, no browser needed.
+- **Update check!** Once a day it asks GitHub for the latest release, and shows an Update pill when a newer one is out. Tap it to download, no browser needed.
 
 **1.0.0** (15 November 2026)
-- First public release: Simple and Detail screens, the bit-perfect verdict, five stats pages, today's listening session, Stay in front.
+- **First public release!** Simple and Detail screens, the bit-perfect verdict, five stats pages, today's listening session, Stay in front.
 
 ## Tested on
 

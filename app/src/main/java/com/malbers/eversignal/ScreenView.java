@@ -46,6 +46,63 @@ public final class ScreenView extends View {
         void checkUpdates();
         /** 1.0.10: clear today's listening stats. */
         void resetStats();
+        /** 1.0.12: tap the cover, full-screen album art (every picture in the album folder and the file). */
+        void openViewer();
+        /** 1.0.12: Settings & about, the cover frame switch. */
+        void toggleFrame();
+    }
+
+    // 1.0.12: full-screen album art viewer. Flips on its own every SLIDE_MS; a swipe steps; a tap or Back closes.
+    /** Michael 2026-11-20: "if you do nothing, then it should just flip through it automatically". Fixed for now. */
+    static final long SLIDE_MS = 10_000;
+    private ArtShow viewer;
+    private int vIdx;
+    private long vNextAt, vChangedAt;
+    /** 1.0.12: a thin border in a colour taken from the picture (Václav H.'s framing idea, 2026-11-20). */
+    private boolean frame = true;
+    private final java.util.WeakHashMap<Bitmap, Integer> frameColours = new java.util.WeakHashMap<>();
+
+    public void openViewer(ArtShow a) {
+        if (viewer != null) viewer.close();
+        viewer = a; vIdx = 0;
+        long now = System.currentTimeMillis();
+        vNextAt = now + SLIDE_MS; vChangedAt = now;
+        invalidate();
+    }
+    public boolean viewerOpen() { return viewer != null; }
+    public String viewerFolder() { return viewer == null ? null : viewer.folder; }
+    public void closeViewer() { if (viewer != null) { viewer.close(); viewer = null; invalidate(); } }
+    public void setFrame(boolean on) { frame = on; invalidate(); }
+
+    /** 1.0.12: lyrics for the playing track (null = none). The LYRICS button only appears when there are some. */
+    private Lrc lyrics;
+    /** Lyrics shown over the art; stays on from track to track until switched off (session only). */
+    private boolean lyricsOn;
+    public void setLyrics(Lrc l) { lyrics = l; invalidate(); }
+
+    /** 1.0.12: pictures the playing album has (0 = unknown); more than one puts a "+N" hint on the Simple cover. */
+    private int artCount;
+    public void setArtCount(int n) { artCount = n; invalidate(); }
+
+    /** The QUALITY tile's word, shared with the full-screen stats line. */
+    private static String quality(Track t) {
+        return t.quality != null ? t.quality
+            : t.dsd ? "DSD" : t.lossy ? "Lossy" : "hires".equals(t.formatClass()) ? "Hi-res" : t.rateHz == null ? null : "CD quality";
+    }
+
+    /** Step the viewer by d pictures, skipping any that can't be decoded; restarts the auto-flip timer. */
+    public void viewerStep(int d) {
+        if (viewer == null) return;
+        int n = viewer.size();
+        if (n <= 1) return;
+        for (int k = 0; k < n; k++) {
+            vIdx = ((vIdx + d) % n + n) % n;
+            if (!viewer.failed(vIdx)) break;
+        }
+        viewer.trim(vIdx);
+        long now = System.currentTimeMillis();
+        vNextAt = now + SLIDE_MS; vChangedAt = now;
+        invalidate();
     }
 
     // design tokens
@@ -197,6 +254,14 @@ public final class ScreenView extends View {
         c.drawRect(0, 0, w, h, p);
         p.setShader(null);
 
+        if (viewer != null) {
+            drawViewer(c, sn);
+            long now = System.currentTimeMillis();
+            if (toast != null && now < toastUntil) drawToast(c);
+            postInvalidateDelayed(250);
+            return;
+        }
+
         c.save();
         c.clipRect(X(0), Y(0), X(vw), Y(480));
         if (sn == null || sn.track == null) drawWaiting(c, sn);
@@ -260,6 +325,14 @@ public final class ScreenView extends View {
         final float coverX = vw - 272, coverY = 92, coverS = 260;
 
         drawCover(c, sn.cover, coverX, coverY, coverS, 10, true);
+        hit(coverX, coverY, coverS, coverS, actions::openViewer);   // 1.0.12: full-screen album art
+        // "1/3": more pictures behind a tap (Michael's pick over "+2"), whenever there is more than one (Michael 2026-11-20)
+        if (artCount > 1 && sn.cover != null) {
+            String more = "1/" + artCount;
+            float mw = measure(more, 15, mono500) + 18;
+            roundRect(c, coverX + coverS - mw - 10, coverY + coverS - 36, mw, 26, 13, 0xB3000000);
+            text(c, more, coverX + coverS - mw - 1, coverY + coverS - 18, 15, mono500, LIGHT, mw);
+        }
         // 1.0.9: Up next moved under the cover (it sat left of the play controls and made the centred row look
         // lopsided, 2026-11-17). Cover column top to bottom: cover (to 352), Up next, update pill, credit.
         if (t.hasQueue && sn.nextTitle != null) {
@@ -377,11 +450,12 @@ public final class ScreenView extends View {
     private void drawTiles(Canvas c, Poller.Snapshot sn, float x, float y, float w, float h) {
         Track t = sn.track;
         List<String[]> tiles = new ArrayList<>();
-        String quality = t.quality != null ? t.quality
-            : t.dsd ? "DSD" : t.lossy ? "Lossy" : "hires".equals(t.formatClass()) ? "Hi-res" : t.rateHz == null ? null : "CD quality";
+        String quality = quality(t);
         // no source line: the top-left chip already names it
         if (quality != null) tiles.add(new String[]{"QUALITY", quality, ""});
-        if (t.rateHz != null) tiles.add(new String[]{"RATE / DEPTH", Track.rateText(t.rateHz, t.dsd), t.bits == null ? "" : Math.round(t.bits) + "-bit"});
+        // 1.0.12: channels on the second line, always (2 ch too, as the stock player shows it). Pierre C. 2026-11-20:
+        // a 5-channel DSF and a 5.1 ALAC showed no channel count on Simple.
+        if (t.rateHz != null) tiles.add(new String[]{"RATE / DEPTH", Track.rateText(t.rateHz, t.dsd), Track.depthChannels(t.bits, t.channels)});
         // 1.0.8: same units as the file-average line ("1.75 Mbps", not "1,748,591 bps"), seen side by side 2026-11-17
         if (sn.exactBps != null) tiles.add(new String[]{"BITRATE", Track.bpsText(sn.exactBps), "file average"});
         else if (t.bitrateBps != null) tiles.add(new String[]{"BITRATE", Track.bpsText(t.bitrateBps), "file average"});
@@ -608,6 +682,7 @@ public final class ScreenView extends View {
 
         float hx = 16, hy = 10;
         drawCover(c, sn.cover, hx, hy + 1, 50, 6, false);
+        hit(hx, hy + 1, 50, 50, actions::openViewer);
         fitText(c, t.title == null ? "" : t.title, hx + 62, hy + 21, 20, hanken600, Color.WHITE, px - hx - 62 - 12);
         float by = hy + 31, bx = hx + 62;
         if (t.badge != Track.Badge.NONE) {
@@ -1371,6 +1446,15 @@ public final class ScreenView extends View {
             p.setMaskFilter(null);
         }
         p.reset(); p.setAntiAlias(true);
+        if (b != null && frame) {
+            // 1.0.12: the frame is the outer band of the same rounded square; the picture sits inside it
+            float bw = Math.max(2f, size * 0.012f);
+            p.setColor(frameColour(b));
+            c.drawRoundRect(r, radius * s, radius * s, p);
+            r = new RectF(r.left + bw * s, r.top + bw * s, r.right - bw * s, r.bottom - bw * s);
+            radius = Math.max(0, radius - bw);
+            p.reset(); p.setAntiAlias(true);
+        }
         if (b != null) {
             BitmapShader sh = new BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             float sc = Math.max(r.width() / b.getWidth(), r.height() / b.getHeight());
@@ -1383,6 +1467,172 @@ public final class ScreenView extends View {
         c.drawRoundRect(r, radius * s, radius * s, p);
         p.setShader(null);
         strokeRect(c, x + 0.5f, y + 0.5f, size - 1, size - 1, radius, 0x0FFFFFFF, 1);
+    }
+
+    /**
+     * 1.0.12: a frame colour that belongs to the picture. Václav's example (Whitesnake "Trouble") is a white cover in a
+     * deep red frame taken from the art, not from the white edge, so the most saturated colours weigh most; a
+     * colourless cover falls back to its average. Kept mid-dark so the frame reads as an edge, not a second picture.
+     */
+    private int frameColour(Bitmap b) {
+        Integer known = frameColours.get(b);
+        if (known != null) return known;
+        Bitmap sm = Bitmap.createScaledBitmap(b, 24, 24, true);
+        float[] hsv = new float[3];
+        double wr = 0, wg = 0, wb = 0, wt = 0, ar = 0, ag = 0, ab = 0;
+        for (int y = 0; y < 24; y++) for (int x = 0; x < 24; x++) {
+            int px = sm.getPixel(x, y);
+            Color.colorToHSV(px, hsv);
+            double w = hsv[1] * hsv[1] * Math.max(0.2, hsv[2]);
+            wr += Color.red(px) * w; wg += Color.green(px) * w; wb += Color.blue(px) * w; wt += w;
+            ar += Color.red(px); ag += Color.green(px); ab += Color.blue(px);
+        }
+        int col = wt > 24 * 24 * 0.04
+            ? Color.rgb((int) (wr / wt), (int) (wg / wt), (int) (wb / wt))
+            : Color.rgb((int) (ar / 576), (int) (ag / 576), (int) (ab / 576));
+        Color.colorToHSV(col, hsv);
+        hsv[2] = Math.min(0.72f, Math.max(0.30f, hsv[2] * 0.85f));
+        int out = Color.HSVToColor(hsv);
+        frameColours.put(b, out);
+        return out;
+    }
+
+    /**
+     * 1.0.12: full-screen album art. The picture fits the screen above a reduced stats line (Michael: "a reduced
+     * player stats line below it... simpler version, key stats"): badge, format, time, then title and artist.
+     */
+    private void drawViewer(Canvas c, Poller.Snapshot sn) {
+        long now = System.currentTimeMillis();
+        int n = viewer.size();
+        if (n > 1 && now >= vNextAt) viewerStep(1);
+        Bitmap b = viewer.get(vIdx);
+        if (b == null && viewer.failed(vIdx) && n > 1) { viewerStep(1); b = viewer.get(vIdx); }
+
+        p.reset(); p.setColor(0xFF000000);
+        c.drawRect(0, 0, getWidth(), getHeight(), p);
+
+        float top = 12, bottom = 408, l = 16, r = vw - 16;
+        if (b != null) {
+            float aw = r - l, ah = bottom - top;
+            float sc = Math.min(aw / b.getWidth(), ah / b.getHeight());
+            float w = b.getWidth() * sc, h = b.getHeight() * sc, x = l + (aw - w) / 2, y = top + (ah - h) / 2;
+            if (frame) {
+                float bw = Math.max(3f, Math.min(w, h) * 0.012f);
+                roundRect(c, x - bw, y - bw, w + 2 * bw, h + 2 * bw, 2, frameColour(b));
+            }
+            p.reset(); p.setAntiAlias(true); p.setFilterBitmap(true);
+            c.drawBitmap(b, null, new RectF(X(x), Y(y), X(x + w), Y(y + h)), p);
+        } else if (n == 0) {
+            drawCentered(c, "No album art for this track", 0, 200, vw, 30, 18, hanken500, 0x99FFFFFF);
+        }
+
+        // 1.0.12: lyrics over the dimmed art, and the LYRICS button (top left) when the track has an .lrc
+        if (lyrics != null) {
+            if (lyricsOn && sn != null && sn.track != null) {
+                p.reset(); p.setColor(0xC0000000);
+                c.drawRect(X(0), Y(0), X(vw), Y(bottom + 4), p);
+                drawLyrics(c, sn, top + 40, bottom - 10);
+            }
+            float bw = measure("LYRICS", 14, hanken600) + 28;
+            if (lyricsOn) roundRect(c, 20, 20, bw, 34, 17, LIGHT);
+            else { roundRect(c, 20, 20, bw, 34, 17, 0xA6000000); strokeRect(c, 20, 20, bw, 34, 17, 0x59FFFFFF, 1); }
+            drawCentered(c, "LYRICS", 20, 20, bw, 34, 14, hanken600, lyricsOn ? DARK_TEXT : LIGHT);
+            hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; invalidate(); });
+        }
+
+        // "3 / 12 · Scan/03.jpg" for 3 s after each change
+        if (n > 1 && now - vChangedAt < 3000) {
+            String lab = viewer.label(vIdx);
+            String cnt = (vIdx + 1) + " / " + n + (lab != null ? "  ·  " + lab : "");
+            float cw = Math.min(measure(cnt, 14, mono400) + 24, vw - 40);
+            roundRect(c, vw - 20 - cw, 20, cw, 30, 15, 0xA6000000);
+            text(c, cnt, vw - 20 - cw + 12, 40, 14, mono400, 0xD9FFFFFF, cw - 24);
+        }
+
+        // 1.0.12: page dots, so it is obvious there is more to swipe (Michael 2026-11-20); a counter past 12 pictures
+        if (n > 1) {
+            float dy = 418;
+            if (n <= 12) {
+                float gap = 14, dx = vw / 2 - (n - 1) * gap / 2;
+                p.reset(); p.setAntiAlias(true);
+                for (int i = 0; i < n; i++) {
+                    p.setColor(i == vIdx ? LIGHT : 0x4DFFFFFF);
+                    c.drawCircle(X(dx + i * gap), Y(dy), (i == vIdx ? 4f : 3f) * s, p);
+                }
+            } else {
+                drawCentered(c, (vIdx + 1) + " / " + n, 0, dy - 9, vw, 18, 13, mono400, 0xB3FFFFFF);
+            }
+        }
+
+        // reduced stats line. 1.0.12: Quality first (Michael: "a mini version of Quality"), then badge, format,
+        // channels and time. No progress bar on purpose: the time already says where you are.
+        if (sn == null || sn.track == null) return;
+        Track t = sn.track;
+        // badge first, then Quality (Michael 2026-11-20: "show Bit-perfect first, then quality")
+        float y = 434, lx = 20;
+        if (t.badge != Track.Badge.NONE) {
+            boolean checking = t.badge == Track.Badge.CHECKING;
+            lx += drawBadge(c, t.badgeText, badgeColor(t.badge), lx, y, 15, checking) + 12;
+        }
+        String q = quality(t);
+        if (q != null) {
+            text(c, q, lx, y + 21, 16, hanken600, ACCENT, 140);
+            lx += Math.min(140, measure(q, 16, hanken600)) + 12;
+        }
+        String fmt = t.formatShort == null ? "" : t.formatShort;
+        if (t.channels != null && t.channels >= 1) fmt = (fmt.isEmpty() ? "" : fmt + " · ") + Math.round(t.channels) + " ch";
+        if (!fmt.isEmpty()) fmt += "   ";
+        String tm = t.durationMs > 0 ? mss(position(sn)) + " / " + mss(t.durationMs) : t.state == 3 ? "" : "Paused";
+        String left = fmt + tm;
+        text(c, left, lx, y + 21, 16, mono400, 0xD9FFFFFF, 400);
+        lx += Math.min(400, measure(left, 16, mono400)) + 24;
+        String ta = (t.title == null ? "" : t.title) + (t.artist == null || t.artist.isEmpty() ? "" : "  ·  " + t.artist);
+        float maxW = vw - 20 - lx;
+        float tw = Math.min(maxW, measure(ta, 17, hanken500));
+        if (maxW > 40) text(c, ta, vw - 20 - tw, y + 21, 17, hanken500, LIGHT, maxW);
+    }
+
+    /**
+     * 1.0.12: lyrics, large, for reading across the room. Synced: the current line big and bright with two lines
+     * before and three after, dimmer. Unsynced (no timestamps): the text scrolls with the track's progress.
+     */
+    private void drawLyrics(Canvas c, Poller.Snapshot sn, float top, float bottom) {
+        Track t = sn.track;
+        long pos = position(sn);
+        float w = vw - 140, cx = 70;
+        if (lyrics.synced) {
+            int cur = lyrics.indexAt(pos);
+            float mid = (top + bottom) / 2;
+            // current line (wrapped, up to 2 rows), centred on mid
+            String curText = cur >= 0 ? lyrics.lines.get(cur).text : "";
+            List<String> rows = wrap(curText.isEmpty() ? "♪" : curText, 34, hanken600, w);
+            if (rows.size() > 2) rows = rows.subList(0, 2);
+            float ch = rows.size() * 42;
+            float y = mid - ch / 2;
+            for (String r : rows) { drawCentered(c, r, cx, y, w, 42, 34, hanken600, Color.WHITE); y += 42; }
+            // before
+            float by = mid - ch / 2 - 8;
+            for (int i = cur - 1; i >= Math.max(0, cur - 2); i--) {
+                by -= 32;
+                if (by < top) break;
+                drawCentered(c, lyrics.lines.get(i).text, cx, by, w, 32, 22, hanken500, 0x73FFFFFF);
+            }
+            // after
+            float ay = mid + ch / 2 + 8;
+            for (int i = cur + 1; i <= Math.min(lyrics.lines.size() - 1, cur + 3); i++) {
+                if (ay + 32 > bottom) break;
+                drawCentered(c, lyrics.lines.get(i).text, cx, ay, w, 32, 22, hanken500, i == cur + 1 ? 0xB3FFFFFF : 0x73FFFFFF);
+                ay += 32;
+            }
+        } else {
+            float frac = t.durationMs > 0 ? Math.min(1f, pos / (float) t.durationMs) : 0f;
+            int n = lyrics.lines.size(), rows = (int) ((bottom - top) / 34);
+            int first = Math.max(0, Math.min(n - rows, Math.round(frac * n) - rows / 2));
+            float y = top;
+            for (int i = first; i < n && y + 34 <= bottom; i++, y += 34) {
+                drawCentered(c, lyrics.lines.get(i).text, cx, y, w, 34, 24, hanken500, 0xD9FFFFFF);
+            }
+        }
     }
 
     private void drawToggle(Canvas c, float x, float y) {
@@ -1567,7 +1817,25 @@ public final class ScreenView extends View {
         y = rowBottom;
         divider(c, ix, y, iw);
 
-        // Today's listening stats: Reset, two steps
+        // 1.0.12: Frame covers, same switch as Stay in front (the two switches sit together)
+        rowTop = y; y += 12;
+        tw = iw - swW - 14;
+        text(c, "Frame covers", ix, y + 15, 17, hanken600, LIGHT, tw);
+        dy = y + 20 + 3;
+        for (String line : wrap("A thin border in a colour from the album art.", 13.5f, hanken400, tw)) {
+            text(c, line, ix, dy + 14, 13.5f, hanken400, 0x99FFFFFF, tw + 4);
+            dy += 19;
+        }
+        rowBottom = dy + 12;
+        swY = (rowTop + rowBottom) / 2 - swH / 2;
+        roundRect(c, swX, swY, swW, swH, swH / 2, frame ? CHIP_GREEN : 0x33FFFFFF);
+        p.reset(); p.setAntiAlias(true); p.setColor(LIGHT);
+        c.drawCircle(X(frame ? swX + swW - 3 - 11 : swX + 3 + 11), Y(swY + swH / 2), 11 * s, p);
+        hit(swX - 12, swY + swH / 2 - 22, swW + 24, 44, actions::toggleFrame);
+        y = rowBottom;
+        divider(c, ix, y, iw);
+
+        // Today's listening stats: Reset, two steps. 1.0.12: moved to the bottom (Michael: "cleaner")
         boolean armed = now < resetArmedUntil, done = now < resetDoneUntil;
         if (armed || done) postInvalidateDelayed(200);
         String rl = done ? "Cleared" : armed ? "Tap to confirm" : "Reset";
@@ -1785,6 +2053,7 @@ public final class ScreenView extends View {
                 return true;
             case MotionEvent.ACTION_MOVE: {
                 float dx = e.getX() - downX, dy = e.getY() - downY;
+                if (viewer != null) return true;
                 if (notes != null) {
                     if (Math.abs(dy) > 8 * s) {
                         dragging = true;
@@ -1802,6 +2071,16 @@ public final class ScreenView extends View {
             }
             case MotionEvent.ACTION_UP: {
                 float dx = e.getX() - downX, dy = e.getY() - downY;
+                if (viewer != null) {   // 1.0.12: swipe steps, a button acts, any other tap closes
+                    if (Math.abs(dx) > 60 * s && Math.abs(dx) > Math.abs(dy) * 1.5f) { viewerStep(dx < 0 ? 1 : -1); return true; }
+                    for (int i = hits.size() - 1; i >= 0; i--) {
+                        RectF r = (RectF) hits.get(i)[0];
+                        RectF big = new RectF(r.left - 6 * s, r.top - 6 * s, r.right + 6 * s, r.bottom + 6 * s);
+                        if (big.contains(e.getX(), e.getY())) { ((Runnable) hits.get(i)[1]).run(); performClick(); return true; }
+                    }
+                    closeViewer(); performClick();
+                    return true;
+                }
                 if (dragging) return true;
                 if (notes == null && info == null && detail && Math.abs(dx) > 60 * s && Math.abs(dx) > Math.abs(dy) * 1.5f) {
                     page = page == FEEDBACK_PAGE ? (dx < 0 ? 0 : CAROUSEL - 1) : (page + (dx < 0 ? 1 : CAROUSEL - 1)) % CAROUSEL;
@@ -1825,6 +2104,12 @@ public final class ScreenView extends View {
      * (Shift + wheel, or a trackpad swipe) changes page, like a swipe.
      */
     @Override public boolean onGenericMotionEvent(MotionEvent e) {
+        if (e.getAction() == MotionEvent.ACTION_SCROLL && viewer != null) {   // 1.0.12: wheel steps the viewer
+            float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL), h = e.getAxisValue(MotionEvent.AXIS_HSCROLL);
+            float d = h != 0 ? h : -v;
+            if (d != 0) viewerStep(d > 0 ? 1 : -1);
+            return true;
+        }
         if (e.getAction() == MotionEvent.ACTION_SCROLL && notes != null) {
             float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
             if (v != 0) { notesScroll = Math.max(0, Math.min(notesMax, notesScroll - v * 50)); invalidate(); }

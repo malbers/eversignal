@@ -123,12 +123,14 @@ public final class Poller implements Runnable {
                     readIo();
                     readQueue(s, t);
                 }
+                if (coverAgain) { coverAgain = false; artRef = "again"; }   // 1.0.12: file access just granted
                 String ref = t.artUrl != null ? "u:" + t.artUrl : t.artPath != null ? "p:" + t.artPath : t.artId != null ? "i:" + t.artId : null;
                 if (ref == null ? artRef != null : !ref.equals(artRef)) { artRef = ref; cover = null; coverRetry.start(now); }   // never show the last track's cover
                 int coverGen = coverRetry.take(now);
                 if (coverGen > 0) {
                     final Track ct = t;
-                    try { coverExec.execute(() -> loadCover(ct, coverGen)); }
+                    final String local = ArtLoader.isLocal(playingFrom) ? playingFrom : null;
+                    try { coverExec.execute(() -> loadCover(ct, local, coverGen)); }
                     catch (Exception e) { coverRetry.finish(coverGen, CoverRetry.Outcome.FAIL, now); }
                 }
 
@@ -381,11 +383,23 @@ public final class Poller implements Runnable {
         return q < 0 ? url : url.substring(0, q) + " (signed link hidden)";
     }
 
+    private volatile boolean coverAgain;
+    /** 1.0.12: load the current track's cover again (called after file access is granted). */
+    void retryCover() { coverAgain = true; }
+
     /** Runs on the cover thread. A FAIL is retried by CoverRetry; a result for an older track is dropped. */
-    private void loadCover(Track t, int gen) {
+    private void loadCover(Track t, String localPath, int gen) {
         Bitmap b = null;
-        CoverRetry.Outcome out;
-        try {
+        CoverRetry.Outcome out = CoverRetry.Outcome.NONE;
+        // 1.0.12: a file on the player's own storage: the album folder FIRST (folder, disc-set parent, embedded art).
+        // Measured on the A6 2026-11-20 (T16 Disc 1): when the player has no art it does NOT always say so with 806;
+        // getImage can return a generic 1080x1080 purple music-note picture, which looked like a cover and kept the
+        // fallback from ever running. Asking the folder first avoids that, and needs no network.
+        if (localPath != null) {
+            b = ArtLoader.mainCover(localPath, 700);
+            if (b != null) out = CoverRetry.Outcome.OK;
+        }
+        if (b == null) try {
             byte[] data = t.artUrl != null ? Api.bytes(t.artUrl, 8000)
                 : t.artPath != null ? Api.bytes(api.url(t.artPath), 8000)
                 : t.artId != null ? Api.bytes(api.url(Api.image(t.artId)), 8000) : null;
@@ -406,6 +420,8 @@ public final class Poller implements Runnable {
         } catch (Exception e) {
             out = CoverRetry.Outcome.FAIL;   // timeout, network error
         }
+        // Folder empty (or unreadable) → the player's picture, as before. Václav H.'s "=" folders and Pierre C.'s
+        // cover.jpg-only albums are both covered by the folder-first step above.
         if (!coverRetry.finish(gen, out, System.currentTimeMillis())) return;
         int tn = b == null ? Color.rgb(42, 38, 34) : tintOf(b);
         cover = b;

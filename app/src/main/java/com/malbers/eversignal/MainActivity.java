@@ -37,9 +37,10 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         view.setDownloadDiag(prefs().getString("dl_diag", null));
         view.setDetail(prefs().getBoolean("detail", false));
         view.setStayOn(stayOn());
+        view.setFrame(prefs().getBoolean("frame", true));
         setContentView(view);
         session = new Session(this);
-        poller = new Poller(api, session, snap -> ui.post(() -> view.setSnapshot(snap)));
+        poller = new Poller(api, session, snap -> ui.post(() -> { last = snap; view.setSnapshot(snap); followAlbum(); }));
         Thread t = new Thread(poller, "poller");
         t.setDaemon(true);
         t.start();
@@ -62,8 +63,15 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         } catch (Exception e) {
             return;
         }
-        ui.postDelayed(() -> view.showNotes("Updated to EverSignal " + BuildConfig.VERSION_NAME + ". What's new:",
-            ReleaseNotes.all(), null, null), 800);
+        // 1.0.12: file access is asked for HERE, after the notes say why (Michael 2026-11-20: set the expectation
+        // first, never a bare prompt at launch). Already granted = the plain notes dialog.
+        if (canReadFiles()) {
+            ui.postDelayed(() -> view.showNotes("Updated to EverSignal " + BuildConfig.VERSION_NAME + ". What's new:",
+                ReleaseNotes.all(), null, null), 800);
+        } else {
+            ui.postDelayed(() -> view.showNotes("Updated to EverSignal " + BuildConfig.VERSION_NAME + ". What's new:",
+                ReleaseNotes.all(), "Allow file access", this::askFiles), 800);
+        }
     }
 
     // ---------------------------------------------------------------- update check
@@ -222,6 +230,10 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         immersive();
         KeepOnTopService.activityVisible = true;
         KeepOnTopService.suspended = false;
+        if (stayPending) {
+            stayPending = false;
+            if (Settings.canDrawOverlays(this) && !stayOn()) setStay(true);   // granted while away: finish the tap
+        }
         if (stayOn() && Settings.canDrawOverlays(this)) startForegroundService(new Intent(this, KeepOnTopService.class));
         view.setStayOn(stayOn());
     }
@@ -243,7 +255,130 @@ public class MainActivity extends Activity implements ScreenView.Actions {
      * Back). No trap: the app only returns after a phone-app or AirPlay start, and the switch turns it off.
      */
     @Override public void onBackPressed() {
+        if (view.viewerOpen()) { view.closeViewer(); return; }   // 1.0.12: Back leaves the art viewer first
         super.onBackPressed();
+    }
+
+    /** 1.0.12: remote / keyboard left-right step the art viewer. */
+    @Override public boolean onKeyDown(int code, android.view.KeyEvent e) {
+        if (view.viewerOpen()) {
+            if (code == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) { view.viewerStep(1); return true; }
+            if (code == android.view.KeyEvent.KEYCODE_DPAD_LEFT) { view.viewerStep(-1); return true; }
+        }
+        return super.onKeyDown(code, e);
+    }
+
+    // ---------------------------------------------------------------- album art (1.0.12)
+
+    private volatile Poller.Snapshot last;
+    private final ExecutorService artExec = Executors.newSingleThreadExecutor();
+    private static final String READ = android.Manifest.permission.READ_EXTERNAL_STORAGE;
+
+    private boolean canReadFiles() { return checkSelfPermission(READ) == android.content.pm.PackageManager.PERMISSION_GRANTED; }
+
+    private static String folderOf(String path) {
+        if (!ArtLoader.isLocal(path)) return null;
+        File p = new File(path).getParentFile();
+        return p == null ? null : p.getPath();
+    }
+
+    /**
+     * 1.0.12: file access is never asked for bare. After an UPDATE the What's new dialog explains it and carries the
+     * "Allow file access" button; on a fresh install (no notes dialog) the first tap on the cover explains it.
+     * Declined = EverSignal behaves as 1.0.11; the cover tap explains again, at most once per launch.
+     */
+    static final String WHY_FILES = "To show the art in your album folders (and lyrics files), EverSignal needs to read your files. It never changes or deletes anything.";
+    private boolean explainedThisLaunch, openAfterGrant;
+
+    private void askFiles() { requestPermissions(new String[]{READ}, 12); }
+
+    /**
+     * Tap on the cover. The pictures come from the playing file's folder; without file access (or for a stream)
+     * the viewer still opens with the cover the player gave us.
+     */
+    @Override public void openViewer() {
+        if (!canReadFiles() && !explainedThisLaunch && ArtLoader.isLocal(last == null ? null : last.playingFrom)) {
+            explainedThisLaunch = true;
+            java.util.List<String> why = new java.util.ArrayList<>();
+            why.add(WHY_FILES);
+            view.showNotes("Album art from your folders", why, "Allow file access",
+                () -> { openAfterGrant = true; askFiles(); });
+            return;
+        }
+        loadViewer(last, false);
+    }
+
+    private void loadViewer(Poller.Snapshot sn, boolean replace) {
+        if (sn == null) return;
+        String path = sn.playingFrom, folder = folderOf(path);
+        android.graphics.Bitmap cover = sn.cover;
+        artExec.execute(() -> {
+            java.util.List<ArtLoader.Item> items = canReadFiles() ? ArtLoader.collect(path) : new java.util.ArrayList<>();
+            ui.post(() -> {
+                if (replace && !view.viewerOpen()) return;   // closed while loading
+                int maxDim = Math.max(getWindow().getDecorView().getWidth(), getWindow().getDecorView().getHeight());
+                view.openViewer(new ArtShow(folder, items, cover, Math.max(720, maxDim), view::postInvalidate));
+            });
+        });
+    }
+
+    /**
+     * 1.0.12: how many pictures the playing album has, for the "+N" hint on the Simple cover (Michael 2026-11-20:
+     * nothing told you a tap shows more). Counted once per album folder, off the UI thread.
+     */
+    private String countedFolder;
+    private void countArt() {
+        if (last == null) return;
+        String path = last.playingFrom, f = folderOf(path);
+        String key = f == null ? "" : f;
+        if (key.equals(countedFolder)) return;
+        countedFolder = key;
+        if (f == null || !canReadFiles()) { view.setArtCount(0); return; }
+        artExec.execute(() -> {
+            int n = ArtLoader.collect(path).size();
+            ui.post(() -> { if (key.equals(countedFolder)) view.setArtCount(n); });
+        });
+    }
+
+    /** The viewer follows the music: a track from another album folder reloads its pictures; every track its lyrics. */
+    private void followAlbum() {
+        countArt();
+        if (!view.viewerOpen() || last == null) { lyricsFor = null; return; }
+        String f = folderOf(last.playingFrom);
+        String shown = view.viewerFolder();
+        if (f != null && !f.equals(shown)) loadViewer(last, true);
+        loadLyrics(last.playingFrom);
+    }
+
+    /** 1.0.12: the playing track's .lrc (Pierre C.), looked up once per track while the full-screen view is open. */
+    private String lyricsFor;
+    private void loadLyrics(String path) {
+        String key = path == null ? "" : path;
+        if (key.equals(lyricsFor)) return;
+        lyricsFor = key;
+        if (!canReadFiles() || !ArtLoader.isLocal(path)) { view.setLyrics(null); return; }
+        artExec.execute(() -> {
+            Lrc l = ArtLoader.lyrics(path);
+            ui.post(() -> { if (key.equals(lyricsFor)) view.setLyrics(l); });
+        });
+    }
+
+    @Override public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(code, perms, res);
+        if (code != 12) return;
+        countedFolder = null;   // recount now that the folder can be read
+        boolean open = openAfterGrant;
+        openAfterGrant = false;
+        if (!canReadFiles()) { if (open) loadViewer(last, false); return; }   // declined: the player's cover only
+        if (poller != null) poller.retryCover();               // a cover the player had none for may be in the folder
+        if (view.viewerOpen()) loadViewer(last, true);         // granted: fill the viewer
+        else if (open) loadViewer(last, false);                // came from a cover tap: open it now
+    }
+
+    @Override public void toggleFrame() {
+        boolean on = !prefs().getBoolean("frame", true);
+        prefs().edit().putBoolean("frame", on).apply();
+        view.setFrame(on);
     }
 
     private void immersive() {
@@ -334,15 +469,25 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     @Override public void vu() {
         KeepOnTopService.suspended = true;   // the player's own VU screen is wanted; don't pull back over it
         view.toast("Opening the DMP-A6 VU meter…");
+        // 1.0.12: at most two presses, each followed by up to 3 s of waiting for isVuMode (see VuPress: Pierre C.'s
+        // player reached VU on press 2 and a third press switched it off again).
         commands.execute(() -> {
             try {
                 Thread.sleep(300);
-                api.text(Api.VU);
-                for (int i = 0; i < 2; i++) {
-                    Thread.sleep(900);
-                    java.util.Map<String, String> s = Flat.of(new org.json.JSONObject(api.text(Api.STATE)));
-                    if (Flat.yes(s, "everSoloPlayInfo.isVuMode")) break;
-                    api.text(Api.VU);
+                VuPress vp = new VuPress();
+                long until = System.currentTimeMillis() + 8000;
+                while (System.currentTimeMillis() < until) {
+                    long now = System.currentTimeMillis();
+                    Boolean vu = null;
+                    if (vp.presses() > 0) {
+                        try {
+                            vu = Flat.yes(Flat.of(new org.json.JSONObject(api.text(Api.STATE))), "everSoloPlayInfo.isVuMode");
+                        } catch (Exception ignored) { }
+                    }
+                    VuPress.Step step = vp.next(now, vu);
+                    if (step == VuPress.Step.DONE) break;
+                    if (step == VuPress.Step.PRESS) { api.text(Api.VU); vp.pressed(System.currentTimeMillis()); }
+                    Thread.sleep(250);
                 }
             } catch (Exception ignored) { }
         });
@@ -374,6 +519,8 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     // ---------------------------------------------------------------- stay in front
 
     private boolean stayOn() { return prefs().getBoolean("stay", false); }
+    /** 1.0.12: the Stay in front switch was tapped and sent the user to Android's overlay permission screen. */
+    private boolean stayPending;
 
     private void setStay(boolean on) {
         prefs().edit().putBoolean("stay", on).apply();
@@ -386,8 +533,11 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         if (stayOn()) { setStay(false); return; }
         if (!Settings.canDrawOverlays(this)) {
             try {
+                // 1.0.12: remember the tap, so coming back with the permission granted switches it on (Michael
+                // 2026-11-20: it stayed off after approving, and needed a second tap nobody expects)
+                stayPending = true;
                 startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
-                view.toast("Allow \"Display over other apps\", then tap Stay in front again");
+                view.toast("Allow \"Display over other apps\", then come back");
             } catch (Exception e) {
                 view.toast("This player has no \"Display over other apps\" setting");
             }

@@ -277,6 +277,14 @@ public final class Track {
         return (m == 64 || m == 128 || m == 256 || m == 512 || m == 1024) ? "DSD" + m : "DSD";
     }
 
+    /** 1.0.12: the RATE / DEPTH tile's second line: "24-bit · 2 ch", "1-bit · 5 ch"; either half alone when the other is unknown. */
+    public static String depthChannels(Double bits, Double channels) {
+        String b = bits == null ? null : Math.round(bits) + "-bit";
+        String ch = channels == null || channels < 1 ? null : Math.round(channels) + " ch";
+        if (b == null) return ch == null ? "" : ch;
+        return ch == null ? b : b + " · " + ch;
+    }
+
     /** 192000 -> "192 kHz", 44100 -> "44.1 kHz", 11289600 -> "11.29 MHz". */
     public static String rateText(Double hz, boolean dsd) {
         if (hz == null) return "N/A";

@@ -4,7 +4,10 @@
     <!-- "Stay in front": Android 10+ blocks returning to the front from the background without this. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- 1.0.12: read-only, to show the album art in the playing track's folder (no write permission is asked for). -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <application
+        android:requestLegacyExternalStorage="true"
         android:label="EverSignal"
         android:icon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
