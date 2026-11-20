@@ -255,7 +255,7 @@ From 1.0.10, tapping the Update pill shows what's new in that version first, the
 ## What's new
 
 **1.0.11** (19 November 2026)
-- **Updating is clearer:** while an update downloads you see its progress, also on Settings › Check for updates. If it fails you see why (for example "not enough space"), and a download that stops moving is cancelled after a minute instead of hanging. Thanks to Coffee Majkel.
+- **Updating is clearer:** while an update downloads you see its progress, also on Settings › Check for updates. If it fails you see why (for example "not enough space"), and a download that stops moving is cancelled after a minute instead of hanging. Thanks to Coffee M.
 - **EQ the way the Eversolo really does it:** the Eversolo only applies EQ to its own player, stereo PCM up to 192 kHz. For DSD, multichannel, higher sample rates and AirPlay or casts it passes the music through untouched, so EverSignal now says **EQ skipped** there. Thanks to Pierre C.
 - **AAC shows 16-bit**, the same as the Eversolo's own screen.
 - **Stay in front stays on** when you leave with Back. Only the switch turns it off, and only a tap on the switch itself counts.
