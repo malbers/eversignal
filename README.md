@@ -1,4 +1,4 @@
-![EverSignal Simple screen: TIDAL, FLAC 192 kHz / 24-bit, EQ off, bit-perfect to the USB DAC](docs/screenshots/1-simple-v102-192.jpg)
+![EverSignal Simple screen: DSD128 from the library, EQ off, DSD native to the USB DAC, with the EQ, VU and Settings buttons](docs/screenshots/1-simple-v1011.jpg)
 
 # EverSignal: now-playing stats for the Eversolo DMP-A6
 
