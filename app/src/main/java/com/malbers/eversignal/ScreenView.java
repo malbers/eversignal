@@ -2148,13 +2148,13 @@ public final class ScreenView extends View {
         drawCheckButton(c, now, c1, by, bw, live);
         button(c, "Release notes", c1 + bw + 8, by, bw, BTN_STROKE, LIGHT, live ? this::openAllNotes : null);
         // Send feedback, 62
-        float fy = y0 + 130;
-        rowDivider(c, c1, fy, colW);
+        float fy = y0 + 130;   // 1.0.12-4: no line above, one below (Michael: feedback above the separator)
         drawQrIcon(c, c1, fy + 19, 0xB8F4F1EC);
         float ftx = c1 + 24 + 14, ftw = colW - 24 - 14 - 16 - 14;
         rowText(c, "Send feedback", "Found a bug, or got it working on your model?", ftx, fy, 62, ftw);
         drawChevron(c, c1 + colW - 16, fy + 23, 0x80F4F1EC, true);
         if (live) hit(c1, fy, colW, 62, this::openFeedback);
+        rowDivider(c, c1, fy + 62, colW);
 
         groupHeading(c, "DISPLAY", c1, y0 + 192);
         float ry = y0 + 216;
