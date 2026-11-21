@@ -130,7 +130,7 @@ public final class Poller implements Runnable {
                 int coverGen = coverRetry.take(now);
                 if (coverGen > 0) {
                     final Track ct = t;
-                    final String local = ArtLoader.isLocal(playingFrom) ? playingFrom : null;
+                    final String local = filesOn && ArtLoader.isLocal(playingFrom) ? playingFrom : null;   // 1.0.12-5: File access switch
                     try { coverExec.execute(() -> loadCover(ct, local, coverGen)); }
                     catch (Exception e) { coverRetry.finish(coverGen, CoverRetry.Outcome.FAIL, now); }
                 }
@@ -385,6 +385,9 @@ public final class Poller implements Runnable {
     }
 
     private volatile boolean coverAgain;
+    /** 1.0.12-5: Settings › File access switched Off = no folder reads, the player's own cover only. */
+    private volatile boolean filesOn = true;
+    void setFilesOn(boolean on) { filesOn = on; }
     /** 1.0.12: load the current track's cover again (called after file access is granted). */
     void retryCover() { coverAgain = true; }
 

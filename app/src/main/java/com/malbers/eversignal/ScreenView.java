@@ -54,6 +54,8 @@ public final class ScreenView extends View {
         void setSlideSecs(int secs);
         /** 1.0.12-3: Settings, File access "Allow": the Android permission prompt. */
         void allowFiles();
+        /** 1.0.12-5: Settings, File access switch (Pierre C.): Off = EverSignal reads no files, permission or not. */
+        void toggleFiles();
     }
 
     // 1.0.12: full-screen album art viewer. Flips on its own every SLIDE_MS; a swipe steps; a tap or Back closes.
@@ -2050,7 +2052,8 @@ public final class ScreenView extends View {
     private int slideSecs = 10;
     static final int[] SLIDE_STEPS = { 5, 10, 20, 30, 60 };
 
-    public void setFilesAllowed(boolean on) { filesAllowed = on; invalidate(); }
+    private boolean filesOn = true;
+    public void setFilesAllowed(boolean granted, boolean on) { filesAllowed = granted; filesOn = on; invalidate(); }
     public void setSlideSecs(int secs) { slideSecs = secs; invalidate(); }
     long slideMs() { return slideSecs * 1000L; }
     public boolean feedbackOpen() { return onSettings() && fbOpen; }
@@ -2172,11 +2175,11 @@ public final class ScreenView extends View {
         drawSwitch(c, c2 + colW - 52, ay + 22, stayOn, live ? actions::toggleStay : null);
         ay += 76;
         rowDivider(c, c2, ay, colW);
-        if (filesAllowed) {
-            float aw = 16 + 6 + measure("Allowed", 15, hanken600);
-            rowText(c, "File access", "Reads album art and lyrics files. Never changes anything.", c2, ay, 76, colW - aw - 14);
-            drawCheck(c, c2 + colW - aw, ay + 30, 16, GREEN);
-            text(c, "Allowed", c2 + colW - aw + 22, ay + 43, 15, hanken600, GREEN, aw);
+        if (filesAllowed) {   // 1.0.12-5: a real On/Off switch once Android has granted it
+            String fdesc = filesOn ? "Reads album art and lyrics files. Never changes anything."
+                : "Off: reads no files. To remove the permission too, use Android Settings › Apps.";
+            rowText(c, "File access", fdesc, c2, ay, 76, colW - 52 - 14);
+            drawSwitch(c, c2 + colW - 52, ay + 22, filesOn, live ? actions::toggleFiles : null);
         } else {
             float aw = Math.max(92, measure("Allow", 15, hanken600) + 32);
             rowText(c, "File access", "Reads album art and lyrics files. Never changes anything.", c2, ay, 76, colW - aw - 14);

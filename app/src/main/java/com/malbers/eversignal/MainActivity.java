@@ -39,10 +39,11 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         view.setStayOn(stayOn());
         view.setFrame(prefs().getBoolean("frame", true));
         view.setSlideSecs(prefs().getInt("slide_s", 10));
-        view.setFilesAllowed(canReadFiles());
+        view.setFilesAllowed(hasFilePermission(), filesOn());
         setContentView(view);
         session = new Session(this);
         poller = new Poller(api, session, snap -> ui.post(() -> { last = snap; view.setSnapshot(snap); followAlbum(); }));
+        poller.setFilesOn(filesOn());
         Thread t = new Thread(poller, "poller");
         t.setDaemon(true);
         t.start();
@@ -67,7 +68,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         }
         // 1.0.12: file access is asked for HERE, after the notes say why (Michael 2026-11-20: set the expectation
         // first, never a bare prompt at launch). Already granted = the plain notes dialog.
-        if (canReadFiles()) {
+        if (hasFilePermission()) {   // switched Off is a choice already made: no Allow button
             ui.postDelayed(() -> view.showNotes("Updated to EverSignal " + BuildConfig.VERSION_NAME + ". What's new:",
                 ReleaseNotes.all(), null, null), 800);
         } else {
@@ -232,7 +233,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         immersive();
         KeepOnTopService.activityVisible = true;
         KeepOnTopService.suspended = false;
-        view.setFilesAllowed(canReadFiles());
+        view.setFilesAllowed(hasFilePermission(), filesOn());
         if (poller != null) poller.recheckVerdict();   // 1.0.12-2: EQ/output may have changed while away
         if (stayPending) {
             stayPending = false;
@@ -279,7 +280,11 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     private final ExecutorService artExec = Executors.newSingleThreadExecutor();
     private static final String READ = android.Manifest.permission.READ_EXTERNAL_STORAGE;
 
-    private boolean canReadFiles() { return checkSelfPermission(READ) == android.content.pm.PackageManager.PERMISSION_GRANTED; }
+    private boolean hasFilePermission() { return checkSelfPermission(READ) == android.content.pm.PackageManager.PERMISSION_GRANTED; }
+    /** 1.0.12-5: Settings › File access. Android cannot take a permission back from inside the app, so Off is EverSignal's own promise. */
+    private boolean filesOn() { return prefs().getBoolean("files_on", true); }
+    /** Every file read goes through this: Android has granted it AND the switch is On. */
+    private boolean canReadFiles() { return hasFilePermission() && filesOn(); }
 
     private static String folderOf(String path) {
         if (!ArtLoader.isLocal(path)) return null;
@@ -302,7 +307,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
      * the viewer still opens with the cover the player gave us.
      */
     @Override public void openViewer() {
-        if (!canReadFiles() && !explainedThisLaunch && ArtLoader.isLocal(last == null ? null : last.playingFrom)) {
+        if (!hasFilePermission() && !explainedThisLaunch && ArtLoader.isLocal(last == null ? null : last.playingFrom)) {
             explainedThisLaunch = true;
             java.util.List<String> why = new java.util.ArrayList<>();
             why.add(WHY_FILES);
@@ -370,7 +375,8 @@ public class MainActivity extends Activity implements ScreenView.Actions {
 
     @Override public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         super.onRequestPermissionsResult(code, perms, res);
-        view.setFilesAllowed(canReadFiles());
+        if (code == 12 && hasFilePermission()) setFilesOn(true);   // asked for it just now: they want it on
+        view.setFilesAllowed(hasFilePermission(), filesOn());
         if (code != 12) return;
         countedFolder = null;   // recount now that the folder can be read
         boolean open = openAfterGrant;
@@ -387,6 +393,22 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     }
 
     @Override public void allowFiles() { askFiles(); }
+
+    /** 1.0.12-5 (Pierre C.): turn file reads off or back on without uninstalling. */
+    @Override public void toggleFiles() {
+        setFilesOn(!filesOn());
+        view.setFilesAllowed(hasFilePermission(), filesOn());
+        countedFolder = null;
+        lyricsFor = null;
+        countArt();
+        if (poller != null) poller.retryCover();               // swap a folder cover for the player's, or back
+        if (view.viewerOpen()) { loadViewer(last, true); if (last != null) loadLyrics(last.playingFrom); }
+    }
+
+    private void setFilesOn(boolean on) {
+        prefs().edit().putBoolean("files_on", on).apply();
+        if (poller != null) poller.setFilesOn(on);
+    }
 
     @Override public void toggleFrame() {
         boolean on = !prefs().getBoolean("frame", true);
