@@ -119,7 +119,7 @@ public final class ScreenView extends View {
     /** Top-right controls, enlarged in 1.0.2 so they are easy to hit: height, toggle width, VU width. */
     private static final float NAV_H = 44, TOG_W = 160, VU_W = 72, EQ_W = 72, GEAR_W = 52;
 
-    private final Typeface hanken400, hanken500, hanken600, mono400, mono500;
+    private final Typeface hanken400, hanken500, hanken600, hanken700, mono400, mono500;
     private final TextPaint tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final List<Object[]> hits = new ArrayList<>();
@@ -168,6 +168,7 @@ public final class ScreenView extends View {
         hanken400 = hanken(ctx, 400);
         hanken500 = hanken(ctx, 500);
         hanken600 = hanken(ctx, 600);
+        hanken700 = hanken(ctx, 700);   // 1.0.13: the Simple v4 badge
         mono400 = font(ctx, "fonts/IBMPlexMono-Regular.ttf", Typeface.MONOSPACE);
         mono500 = font(ctx, "fonts/IBMPlexMono-Medium.ttf", Typeface.MONOSPACE);
     }
@@ -248,9 +249,14 @@ public final class ScreenView extends View {
         hits.clear();
         c.drawColor(BG);
         Poller.Snapshot sn = snap;
-        int tint = sn == null ? Color.rgb(42, 38, 34) : sn.tint;
+        int tint = sn == null || sn.cover == null ? 0xFF262220 : sn.tint;
         p.reset();
-        p.setShader(new RadialGradient(X(vw - 120), Y(230), 0.62f * 1056 * s, tint, Color.TRANSPARENT, Shader.TileMode.CLAMP));
+        // 1.0.13 (Simple v4): glow = an ellipse 560 x 440 centred on the cover (W - 144, 192), tint -> transparent
+        RadialGradient glow = new RadialGradient(X(vw - 144), Y(192), 280 * s, tint, Color.TRANSPARENT, Shader.TileMode.CLAMP);
+        Matrix gm = new Matrix();
+        gm.setScale(1f, 440f / 560f, X(vw - 144), Y(192));
+        glow.setLocalMatrix(gm);
+        p.setShader(glow);
         c.drawRect(0, 0, w, h, p);
         p.setShader(null);
 
@@ -318,7 +324,261 @@ public final class ScreenView extends View {
 
     // ================================================================ Simple
 
+    // ---------------------------------------------------------------- Simple v4 (1.0.13 design handoff, 2026-11-20)
+    // Approved by Michael ("easier to read", "the most important thing pops"). Spec: design_handoff_simple_v4/README.md,
+    // kept in hifi/files/eversolo-now-playing/design/. Grid units on 900 x 480; at 1280 only the left column stretches.
+    // Priority order: badge, what's playing, quality, signal path, stats, transport. All positions absolute: no state
+    // moves anything.
+
+    private static final int NEUTRAL_SUB = 0x9EF4F1EC;   // LIGHT at 62%
+
     private void drawSimple(Canvas c, Poller.Snapshot sn) {
+        Track t = sn.track;
+        final float L0 = 16, LW = vw - 312;            // left column x 16 -> W - 296
+        final float RX = vw - 272, RW = 256;           // right column
+        boolean paused = t.badge == Track.Badge.PAUSED;
+        boolean checking = t.badge == Track.Badge.CHECKING;
+
+        // ---- right column: cover, picture count, up next, update pill, credit
+        if (sn.cover != null) {
+            drawCover(c, sn.cover, RX, 64, RW, 12, true);
+            if (artCount > 1) drawCountChip(c, RX + RW - 10, 64 + RW - 10, "1/" + artCount);
+        } else drawNoCover(c, RX, 64, RW);
+        hit(RX, 64, RW, RW, actions::openViewer);
+        if (t.hasQueue && sn.nextTitle != null) {
+            labelV4(c, "UP NEXT", RX, 347, 0.12f);
+            fitText(c, sn.nextTitle, RX, 370, 18, hanken500, LIGHT, RW);
+        }
+        drawUpdateV4(c, RX, 416, RW - 150);
+        String credit = "made by @malbers";
+        float cw = measure(credit, 13, hanken400);
+        text(c, credit, vw - 16 - cw, 443, 13, hanken400, 0x80F4F1EC, cw + 2);
+        hit(vw - 16 - cw - 8, 416, cw + 16, 44, actions::openChannel);
+
+        // ---- top bar
+        drawNav(c, t);
+        drawPill(c, sourceChip(t).toUpperCase(Locale.US), L0, 17, 13, hanken600, 0x1AF4F1EC, LIGHT, 12, 0.12f);   // top at 20
+
+        // ---- title / artist / album
+        fitTitleV4(c, t.title == null ? "" : t.title, L0, 98, LW);
+        if (t.artist != null) fitText(c, t.artist, L0, 128, 20, hanken500, 0xD9F4F1EC, LW);
+        if (t.album != null) fitText(c, t.album, L0, 151, 16, hanken400, 0x94F4F1EC, LW);
+
+        // ---- status row: badge, then the quality block
+        float qx = L0 + drawBadgeV4(c, t, L0, 168, paused) + 18;
+        String q = t.lossy && !t.ownPlayer && t.badgeText != null && !t.badgeText.isEmpty() ? t.badgeText + " · " + t.playerLabel : quality(t);
+        String q2 = qualityLine(t);
+        float qw = L0 + LW - qx;
+        if (q != null) fitText(c, q, qx, q2.isEmpty() ? 199 : 189, 22, hanken600, LIGHT, qw);
+        if (!q2.isEmpty()) fitText(c, q2, qx, 210, 15, mono400, 0xB8F4F1EC, qw);
+
+        // ---- signal path, stats row, progress, transport
+        drawPathV4(c, t, L0, 226, LW, 106, paused, checking);
+        drawStatsV4(c, sn, L0 + 16, 344, LW - 32);
+        drawProgressV4(c, sn, L0, 394, LW, paused);
+        float midX = L0 + LW / 2, rowY = 410;
+        drawRoundButton(c, midX - 28 - 20 - 48, rowY + 4, 48, false, "prev"); hit(midX - 28 - 20 - 48, rowY + 4, 48, 48, actions::previous);
+        drawRoundButton(c, midX - 28, rowY, 56, true, t.state == 3 ? "pause" : "play"); hit(midX - 28, rowY, 56, 56, actions::playPause);
+        drawRoundButton(c, midX + 28 + 20, rowY + 4, 48, false, "next"); hit(midX + 28 + 20, rowY + 4, 48, 48, actions::next);
+        int tcol = 0xB8F4F1EC;
+        text(c, mss(position(sn)), L0, 444, 16, mono400, paused ? 0x73F4F1EC : tcol, 80);
+        String total = t.durationMs > 0 ? mss(t.durationMs) : "";
+        float tw = measure(total, 16, mono400);
+        text(c, total, L0 + LW - tw, 444, 16, mono400, tcol, tw + 2);
+    }
+
+    /** "44.1 kHz · 16-bit · 2 ch" / "2.82 MHz · 1-bit · 5 ch"; empty when the player reports no rate. */
+    private static String qualityLine(Track t) {
+        if (t.rateHz == null) return "";
+        String dc = Track.depthChannels(t.bits, t.channels);
+        return Track.rateText(t.rateHz, t.dsd) + (dc.isEmpty() ? "" : " · " + dc);
+    }
+
+    /** Title: Hanken 600, 36 shrinking to 28 to stay on one line, then an ellipsis. */
+    private void fitTitleV4(Canvas c, String title, float x, float baseline, float w) {
+        tp.setTypeface(hanken600); tp.setColor(LIGHT); tp.setLetterSpacing(-0.01f);
+        float sz = 36;
+        tp.setTextSize(sz * s);
+        while (tp.measureText(title) > w * s && sz > 28) { sz -= 1; tp.setTextSize(sz * s); }
+        c.drawText(TextUtils.ellipsize(title, tp, w * s, TextUtils.TruncateAt.END).toString(), X(x), Y(baseline), tp);
+        tp.setLetterSpacing(0);
+    }
+
+    private void labelV4(Canvas c, String text, float x, float baseline, float spacing) {
+        tp.setTypeface(hanken600); tp.setTextSize(13 * s); tp.setColor(ACCENT); tp.setLetterSpacing(spacing);
+        c.drawText(text, X(x), Y(baseline), tp);
+        tp.setLetterSpacing(0);
+    }
+
+    /** v4 badge colours: green clean (incl. DSD native), amber changed, violet MQA, blue Checking, neutral Paused. */
+    private int badgeColorV4(Track.Badge b) {
+        switch (b) {
+            case BIT_PERFECT: case DSD_NATIVE: return GREEN;
+            case EQ_ACTIVE: case RESAMPLED: case DSD_TO_PCM: case VOLUME: return AMBER;
+            case MQA: return VIOLET;
+            case CHECKING: case HIRES_STREAM: return BLUE;
+            case PAUSED: return LIGHT;
+            default: return ORANGE;   // Lossy
+        }
+    }
+
+    /** The status-row badge (48 tall, tappable). Returns its width. Paused adds the hint in smaller type. */
+    private float drawBadgeV4(Canvas c, Track t, float x, float y, boolean paused) {
+        if (t.badge == Track.Badge.NONE && !paused) return -18;
+        String txt = paused ? "Paused" : t.badgeText;
+        int col = paused ? LIGHT : badgeColorV4(t.badge);
+        String hint = paused ? "· press play for the signal path" : null;
+        float tw = measure(txt, 22, hanken700), hw = hint == null ? 0 : 10 + measure(hint, 14, hanken500);
+        boolean dot = !paused;
+        float bw = 14 + (dot ? 10 + 10 : 0) + tw + hw + 18;
+        roundRect(c, x, y, bw, 48, 24, (col & 0x00FFFFFF) | (paused ? 0x1A000000 : col == BLUE ? 0x24000000 : 0x26000000));
+        float tx = x + 14;
+        if (dot) {
+            p.reset(); p.setAntiAlias(true);
+            p.setColor(t.badge == Track.Badge.CHECKING ? pulse(col) : col);
+            c.drawCircle(X(tx + 5), Y(y + 24), 5 * s, p);
+            tx += 20;
+        }
+        text(c, txt, tx, y + 32, 22, hanken700, col, tw + 4);
+        if (hint != null) text(c, hint, tx + tw + 10, y + 30, 14, hanken500, 0xB3F4F1EC, hw);
+        if (!paused && t.badge != Track.Badge.CHECKING) hit(x, y, bw, 48, () -> showInfo(t));
+        return bw;
+    }
+
+    /**
+     * Signal path: four equal nodes. Sub-lines green while the path is clean; the node that changes the signal turns
+     * amber (value and sub-lines), every node after it goes neutral. Checking: Output and Port at 40%. Paused: Output
+     * and Port show "…" at 45% with no sub-lines (Source and Processing describe the file and stay).
+     */
+    private void drawPathV4(Canvas c, Track t, float x, float y, float w, float h, boolean paused, boolean checking) {
+        roundRect(c, x, y, w, h, 12, 0x4D000000);
+        strokeRect(c, x + 0.5f, y + 0.5f, w - 1, h - 1, 12, 0x14F4F1EC, 1);
+        String[][] n = nodesV4(t);
+        int changed = t.badge == Track.Badge.EQ_ACTIVE ? 1
+            : t.badge == Track.Badge.RESAMPLED || t.badge == Track.Badge.DSD_TO_PCM ? 2 : -1;
+        float gut = 24, nodeW = (w - 32 - 3 * gut) / 4f, nx = x + 16;
+        for (int i = 0; i < 4; i++) {
+            boolean pending = (paused || checking) && i >= 2;
+            int valCol = i == changed ? AMBER : LIGHT;
+            int subCol = i == changed ? AMBER : (changed >= 0 && i > changed) || checking ? NEUTRAL_SUB : GREEN;
+            int alpha = paused && i >= 2 ? 0x73 : checking && i >= 2 ? 0x66 : 0xFF;
+            labelV4(c, n[i][0], nx, y + 12 + 13, 0.1f);
+            String val = paused && i >= 2 ? "…" : n[i][1];
+            fitText(c, val, nx, y + 51, 20, mono500, withAlpha(valCol, alpha), nodeW);
+            if (!(paused && i >= 2)) {
+                if (!n[i][2].isEmpty()) fitText(c, n[i][2], nx, y + 72, 14, mono400, withAlpha(subCol, alpha), nodeW);
+                if (!n[i][3].isEmpty()) fitText(c, n[i][3], nx, y + 92, 14, mono400, withAlpha(subCol, alpha), nodeW);
+            }
+            nx += nodeW;
+            if (i < 3) { drawArrow(c, nx + 5, y + 24 + 12, 0x52F4F1EC); nx += gut; }
+        }
+    }
+
+    private static int withAlpha(int col, int alpha) {
+        int a = ((col >>> 24) * alpha) / 255;
+        return (col & 0x00FFFFFF) | (a << 24);
+    }
+
+    private String[][] nodesV4(Track t) {
+        String src, s1, s2;
+        if (t.dsd) {
+            src = t.container == null ? "DSD" : t.container;
+            s1 = Track.dsdName(t.rateHz);
+            s2 = Track.depthChannels(1.0, t.channels);
+        } else {
+            src = t.container != null ? t.container : t.codec != null ? t.codec : sourceChip(t);
+            s1 = t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
+            s2 = t.bits == null ? (t.lossy && t.bitrate != null ? t.bitrate : "") : Math.round(t.bits) + "-bit";
+        }
+        String out, o1;
+        if (t.outCodec == null) { out = "…"; o1 = ""; }
+        else if (Track.isDsdCodec(t.outCodec)) { out = t.outCodec.replace(" ", ""); o1 = Track.rateText(t.outRateHz, true); }
+        else { out = t.outCodec; o1 = t.outRateHz == null ? "" : Track.rateText(t.outRateHz, false); }
+        return new String[][]{
+            {"SOURCE", src, s1, s2},
+            {"PROCESSING", t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
+            {"OUTPUT", out, o1, ""},
+            {"PORT", t.iface == null ? "…" : t.iface, t.iface != null && t.analogPort() ? "analog out" : "", ""},
+        };
+    }
+
+    /** BITRATE (file average) · FILE SIZE · INPUT, left-aligned; any the player doesn't report is left out. */
+    private void drawStatsV4(Canvas c, Poller.Snapshot sn, float x, float y, float w) {
+        Track t = sn.track;
+        Double bps = sn.exactBps != null ? sn.exactBps : t.bitrateBps;
+        String size = sn.sizeBytes != null ? sn.sizeBytes : t.fileSize;
+        Poller.Device d = sn.device;
+        String in = d.inputIndex >= 0 && d.inputIndex < d.inputs.size() ? d.inputs.get(d.inputIndex) : null;
+        float ix = x, end = x + w;
+        if (bps != null) {
+            String v = Track.bpsText(bps);
+            float vw1 = measure(v, 15, mono500), aw = measure("file average", 13, hanken400);
+            labelV4(c, "BITRATE", ix, y + 13, 0.1f);
+            text(c, v, ix, y + 32, 15, mono500, LIGHT, vw1 + 2);
+            text(c, "file average", ix + vw1 + 6, y + 32, 13, hanken400, 0x80F4F1EC, aw + 2);
+            ix += Math.max(vw1 + 6 + aw, measure("BITRATE", 13, hanken600)) + 28;
+        }
+        if (size != null && ix < end) {
+            labelV4(c, "FILE SIZE", ix, y + 13, 0.1f);
+            text(c, size, ix, y + 32, 15, mono500, LIGHT, end - ix);
+            ix += Math.max(measure(size, 15, mono500), measure("FILE SIZE", 13, hanken600) * 1.12f) + 28;
+        }
+        if (in != null && ix < end) {
+            labelV4(c, "INPUT", ix, y + 13, 0.1f);
+            fitText(c, in, ix, y + 32, 15, mono500, LIGHT, end - ix);
+        }
+    }
+
+    private void drawProgressV4(Canvas c, Poller.Snapshot sn, float x, float y, float w, boolean paused) {
+        Track t = sn.track;
+        float frac = t.durationMs > 0 ? Math.min(1f, position(sn) / (float) t.durationMs) : 0;
+        roundRect(c, x, y, w, 4, 2, 0x24F4F1EC);
+        if (frac > 0) roundRect(c, x, y, w * frac, 4, 2, paused ? 0x73F4F1EC : LIGHT);
+    }
+
+    /** "1/7" chip, bottom-right of the cover: stacked-pictures icon + count. (rx, by) = the chip's right and bottom. */
+    private void drawCountChip(Canvas c, float rx, float by, String txt) {
+        float tw = measure(txt, 13, mono500), w = 8 + 13 + 6 + tw + 10, x = rx - w, y = by - 26;
+        roundRect(c, x, y, w, 26, 13, 0xC70B0A0A);
+        float ix = x + 8, iy = y + 6.5f;
+        strokeRect(c, ix + 3, iy, 10, 10, 2, 0xB3F4F1EC, 1.3f);
+        strokeRect(c, ix, iy + 3, 10, 10, 2, LIGHT, 1.3f);
+        text(c, txt, ix + 13 + 6, y + 18, 13, mono500, LIGHT, tw + 2);
+    }
+
+    /** No cover art: dark tile, record icon, "No cover art". */
+    private void drawNoCover(Canvas c, float x, float y, float sz) {
+        roundRect(c, x, y, sz, sz, 12, 0xFF1C1916);
+        strokeRect(c, x + 0.5f, y + 0.5f, sz - 1, sz - 1, 12, 0x14F4F1EC, 1);
+        float cx = x + sz / 2, cy = y + sz / 2 - 12;
+        p.reset(); p.setAntiAlias(true); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(2 * s); p.setColor(0x47F4F1EC);
+        c.drawCircle(X(cx), Y(cy), 33 * s, p);
+        c.drawCircle(X(cx), Y(cy), 9 * s, p);
+        p.setStyle(Paint.Style.FILL);
+        c.drawCircle(X(cx), Y(cy), 2 * s, p);
+        drawCentered(c, "No cover art", x, cy + 46, sz, 20, 14, hanken500, 0x73F4F1EC);
+    }
+
+    /** Update pill (only when an update exists): 44 tall, tan outline + tint, up arrow, the offer text. */
+    private void drawUpdateV4(Canvas c, float x, float y, float maxW) {
+        if (update == null) return;
+        int col = updateColor == GREEN ? ACCENT : updateColor;
+        float tw = Math.min(measure(update, 14, hanken600), maxW - 52), w = 16 + 16 + 8 + tw + 18;
+        roundRect(c, x, y, w, 44, 22, (col & 0x00FFFFFF) | 0x1F000000);
+        strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, 44 - 1.5f, 22, col, 1.5f);
+        p.reset(); p.setAntiAlias(true); p.setColor(col); p.setStrokeWidth(1.8f * s); p.setStrokeCap(Paint.Cap.ROUND);
+        float ax = x + 16 + 8, ay = y + 22;
+        c.drawLine(X(ax), Y(ay + 6), X(ax), Y(ay - 6), p);
+        c.drawLine(X(ax), Y(ay - 6), X(ax - 5), Y(ay - 1), p);
+        c.drawLine(X(ax), Y(ay - 6), X(ax + 5), Y(ay - 1), p);
+        tp.setTypeface(hanken600); tp.setTextSize(14 * s); tp.setColor(col);
+        c.drawText(TextUtils.ellipsize(update, tp, tw * s, TextUtils.TruncateAt.END).toString(), X(x + 40), Y(y + 27), tp);
+        hit(x, y, w, 44, actions::update);
+    }
+
+    /** Pre-1.0.13 Simple screen, kept for reference while v4 is device-tested; not drawn. */
+    @SuppressWarnings("unused")
+    private void drawSimpleV3(Canvas c, Poller.Snapshot sn) {
         Track t = sn.track;
         // 1.0.2: the stats are the point, so the cover shrinks (340 -> 260) and the left side grows; no text below ~16
         final float left = 32, right = vw - 302, w = right - left;
@@ -516,7 +776,10 @@ public final class ScreenView extends View {
 
     private void showInfo(Track t) {
         // 1.0.5: explains the badge that was tapped, with a live "to get Bit-perfect" checklist (BadgeInfo)
-        info = BadgeInfo.lines(t).toArray(new String[0]);
+        // 1.0.13: Simple v4 dropped the on-screen "44.1kHz in = 44.1kHz out" line; it now leads the explanation
+        java.util.List<String> lines = new java.util.ArrayList<>(BadgeInfo.lines(t));
+        if (t.badgeNote != null && !t.badgeNote.isEmpty() && !lines.isEmpty() && !lines.contains(t.badgeNote)) lines.add(1, t.badgeNote);
+        info = lines.toArray(new String[0]);
         infoUntil = System.currentTimeMillis() + 15000;
         invalidate();
     }
@@ -1446,15 +1709,6 @@ public final class ScreenView extends View {
             p.setMaskFilter(null);
         }
         p.reset(); p.setAntiAlias(true);
-        if (b != null && frame) {
-            // 1.0.12: the frame is the outer band of the same rounded square; the picture sits inside it
-            float bw = Math.max(2f, size * 0.012f);
-            p.setColor(frameColour(b));
-            c.drawRoundRect(r, radius * s, radius * s, p);
-            r = new RectF(r.left + bw * s, r.top + bw * s, r.right - bw * s, r.bottom - bw * s);
-            radius = Math.max(0, radius - bw);
-            p.reset(); p.setAntiAlias(true);
-        }
         if (b != null) {
             BitmapShader sh = new BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             float sc = Math.max(r.width() / b.getWidth(), r.height() / b.getHeight());
@@ -1466,6 +1720,14 @@ public final class ScreenView extends View {
         } else p.setColor(0xFF1C1A19);
         c.drawRoundRect(r, radius * s, radius * s, p);
         p.setShader(null);
+        if (b != null && frame) {
+            // 1.0.13 (Simple v4): the frame is an inner line, 2 wide, in a LIGHTER colour taken from the art
+            float[] hsv = new float[3];
+            Color.colorToHSV(frameColour(b), hsv);
+            hsv[2] = Math.min(0.9f, Math.max(0.6f, hsv[2] * 1.45f));
+            float sw = size >= 100 ? 2f : 1.5f;
+            strokeRect(c, x + sw / 2, y + sw / 2, size - sw, size - sw, radius, Color.HSVToColor(hsv), sw);
+        }
         strokeRect(c, x + 0.5f, y + 0.5f, size - 1, size - 1, radius, 0x0FFFFFFF, 1);
     }
 
