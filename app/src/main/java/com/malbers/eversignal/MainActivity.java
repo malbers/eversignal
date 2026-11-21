@@ -230,6 +230,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         immersive();
         KeepOnTopService.activityVisible = true;
         KeepOnTopService.suspended = false;
+        if (poller != null) poller.recheckVerdict();   // 1.0.12-2: EQ/output may have changed while away
         if (stayPending) {
             stayPending = false;
             if (Settings.canDrawOverlays(this) && !stayOn()) setStay(true);   // granted while away: finish the tap

@@ -369,7 +369,8 @@ public final class ScreenView extends View {
         String q = t.lossy && !t.ownPlayer && t.badgeText != null && !t.badgeText.isEmpty() ? t.badgeText + " · " + t.playerLabel : quality(t);
         String q2 = qualityLine(t);
         float qw = L0 + LW - qx;
-        if (q != null) fitText(c, q, qx, q2.isEmpty() ? 199 : 189, 22, hanken600, LIGHT, qw);
+        // 1.0.12-2: the quality word in ORANGE, every value (Michael 2026-11-20, picked over WARN_RED and UPDATE_FAILED)
+        if (q != null) fitText(c, q, qx, q2.isEmpty() ? 199 : 189, 22, hanken600, ORANGE, qw);
         if (!q2.isEmpty()) fitText(c, q2, qx, 210, 15, mono400, 0xB8F4F1EC, qw);
 
         // ---- signal path, stats row, progress, transport

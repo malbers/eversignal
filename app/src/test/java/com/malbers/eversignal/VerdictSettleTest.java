@@ -21,6 +21,16 @@ public class VerdictSettleTest {
         assertEquals(Track.Badge.MQA, v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 4000).badge);       // steady 3 s
     }
 
+    @Test public void backInFrontShowsCheckingNotTheOldVerdict() {
+        VerdictSettle v = new VerdictSettle();
+        v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 0);
+        assertEquals(Track.Badge.BIT_PERFECT, v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 3000).badge);
+        v.reset();                                                                                         // EQ turned on elsewhere
+        assertEquals(Track.Badge.CHECKING, v.apply(t(Track.Badge.BIT_PERFECT, "Bit-perfect"), 4000).badge);  // stale state
+        assertEquals(Track.Badge.CHECKING, v.apply(t(Track.Badge.EQ_ACTIVE, "EQ active"), 5000).badge);
+        assertEquals(Track.Badge.EQ_ACTIVE, v.apply(t(Track.Badge.EQ_ACTIVE, "EQ active"), 8000).badge);
+    }
+
     @Test public void inBetweenOutputsDoNotFlash() {
         VerdictSettle v = new VerdictSettle();
         v.apply(t(Track.Badge.MQA, "MQA unfolded ×8"), 0);

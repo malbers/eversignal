@@ -116,6 +116,7 @@ public final class Poller implements Runnable {
                 Track t = Track.from(s, now - keyChangedAt >= SETTLE_MS);
                 t.applyQueueFile(queueItem, now - keyChangedAt >= SETTLE_MS);   // .m4a: the queue has the true rate
                 hold.apply(t, t.state == 3 && now - lastStartAt >= SETTLE_MS && now - keyChangedAt >= SETTLE_MS, now);
+                if (recheck) { recheck = false; settle.reset(); }   // 1.0.12-2: back from another screen
                 settle.apply(t, now);   // after the hold: only decides when the badge may change
 
                 if (changed || now - lastSlow > 20_000) {
@@ -387,6 +388,10 @@ public final class Poller implements Runnable {
     /** 1.0.12: load the current track's cover again (called after file access is granted). */
     void retryCover() { coverAgain = true; }
 
+    private volatile boolean recheck;
+    /** EverSignal is back in front: settings may have changed meanwhile (EQ, output), so show Checking first. */
+    void recheckVerdict() { recheck = true; }
+
     /** Runs on the cover thread. A FAIL is retried by CoverRetry; a result for an older track is dropped. */
     private void loadCover(Track t, String localPath, int gen) {
         Bitmap b = null;
@@ -416,6 +421,9 @@ public final class Poller implements Runnable {
                 o.inSampleSize = sample;
                 b = BitmapFactory.decodeByteArray(data, 0, data.length, o);
                 out = b != null ? CoverRetry.Outcome.OK : CoverRetry.Outcome.FAIL;   // cut-off bytes: try again
+                // 1.0.12-2: the player's generic music-note picture is "no art", not a cover (Michael 2026-11-20:
+                // "No cover art" first, then the orange note popped in on the retry). Checked at full size.
+                if (b != null && o.inSampleSize == 1 && isPlaceholder(b)) { b = null; out = CoverRetry.Outcome.NONE; }
             }
         } catch (Exception e) {
             out = CoverRetry.Outcome.FAIL;   // timeout, network error
@@ -426,6 +434,14 @@ public final class Poller implements Runnable {
         int tn = b == null ? Color.rgb(42, 38, 34) : tintOf(b);
         cover = b;
         tint = tn;
+    }
+
+    static boolean isPlaceholder(Bitmap b) {
+        return PlayerPlaceholder.is(new PlayerPlaceholder.Pixels() {
+            public int width() { return b.getWidth(); }
+            public int height() { return b.getHeight(); }
+            public int get(int x, int y) { return b.getPixel(x, y); }
+        });
     }
 
     /** A dark, low-saturation tint from the cover's average colour (design: OKLCH L about .34, low chroma). */

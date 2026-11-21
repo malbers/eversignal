@@ -33,6 +33,13 @@ final class VerdictSettle {
         return t;
     }
 
+    /**
+     * 1.0.12-2: forget the shown verdict, so the badge says Checking until a fresh one is steady (START_MS).
+     * Called when EverSignal comes back to the front: Michael (2026-11-20) turned EQ on in the stock screen,
+     * came back, and saw the old Bit-perfect for a moment before EQ active popped in.
+     */
+    void reset() { shown = null; pending = null; }
+
     private void show(Track t) { shown = t.badge; shownText = t.badgeText; shownNote = t.badgeNote; shownMqa = t.mqaOut; }
 
     private static boolean eq(String a, String b) { return a == null ? b == null : a.equals(b); }
