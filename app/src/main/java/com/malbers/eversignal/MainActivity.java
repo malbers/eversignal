@@ -38,6 +38,8 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         view.setDetail(prefs().getBoolean("detail", false));
         view.setStayOn(stayOn());
         view.setFrame(prefs().getBoolean("frame", true));
+        view.setSlideSecs(prefs().getInt("slide_s", 10));
+        view.setFilesAllowed(canReadFiles());
         setContentView(view);
         session = new Session(this);
         poller = new Poller(api, session, snap -> ui.post(() -> { last = snap; view.setSnapshot(snap); followAlbum(); }));
@@ -230,6 +232,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         immersive();
         KeepOnTopService.activityVisible = true;
         KeepOnTopService.suspended = false;
+        view.setFilesAllowed(canReadFiles());
         if (poller != null) poller.recheckVerdict();   // 1.0.12-2: EQ/output may have changed while away
         if (stayPending) {
             stayPending = false;
@@ -257,6 +260,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
      */
     @Override public void onBackPressed() {
         if (view.viewerOpen()) { view.closeViewer(); return; }   // 1.0.12: Back leaves the art viewer first
+        if (view.feedbackOpen()) { view.closeFeedback(); return; }   // 1.0.12-3: then the Feedback view
         super.onBackPressed();
     }
 
@@ -366,6 +370,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
 
     @Override public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         super.onRequestPermissionsResult(code, perms, res);
+        view.setFilesAllowed(canReadFiles());
         if (code != 12) return;
         countedFolder = null;   // recount now that the folder can be read
         boolean open = openAfterGrant;
@@ -375,6 +380,13 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         if (view.viewerOpen()) loadViewer(last, true);         // granted: fill the viewer
         else if (open) loadViewer(last, false);                // came from a cover tap: open it now
     }
+
+    @Override public void setSlideSecs(int secs) {
+        prefs().edit().putInt("slide_s", secs).apply();
+        view.setSlideSecs(secs);
+    }
+
+    @Override public void allowFiles() { askFiles(); }
 
     @Override public void toggleFrame() {
         boolean on = !prefs().getBoolean("frame", true);
@@ -417,8 +429,8 @@ public class MainActivity extends Activity implements ScreenView.Actions {
                     .putString("upd_url", r.url).putString("upd_notes", r.notes).apply();
                 showUpdate();
                 String v = newerVersion();
-                if (v != null) { view.checkStatus(v + " available", 1800); update(); }
-                else view.checkStatus("Up to date", 1800);
+                if (v != null) { view.checkStatus(v + " available", 60000); update(); }
+                else view.checkStatus("Up to date", 3000);
             });
         }, "update-check-now");
         t.setDaemon(true);
@@ -428,6 +440,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     /** Gear: opens Settings & about; a second tap goes back to where you were (Simple, or the Detail page). */
     private boolean settingsFromSimple;
     @Override public void openSettings() {
+        if (view.feedbackOpen()) { view.closeFeedback(); return; }   // 1.0.12-3: the cog first closes Feedback
         if (view.onSettings()) {
             if (settingsFromSimple) { prefs().edit().putBoolean("detail", false).apply(); view.setDetail(false); }
             view.leaveSettings();

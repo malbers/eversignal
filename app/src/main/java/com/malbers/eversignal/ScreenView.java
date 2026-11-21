@@ -50,6 +50,10 @@ public final class ScreenView extends View {
         void openViewer();
         /** 1.0.12: Settings & about, the cover frame switch. */
         void toggleFrame();
+        /** 1.0.12-3: Settings, slideshow speed for Full-Screen Album Mode (5/10/20/30/60 s). */
+        void setSlideSecs(int secs);
+        /** 1.0.12-3: Settings, File access "Allow": the Android permission prompt. */
+        void allowFiles();
     }
 
     // 1.0.12: full-screen album art viewer. Flips on its own every SLIDE_MS; a swipe steps; a tap or Back closes.
@@ -66,7 +70,7 @@ public final class ScreenView extends View {
         if (viewer != null) viewer.close();
         viewer = a; vIdx = 0;
         long now = System.currentTimeMillis();
-        vNextAt = now + SLIDE_MS; vChangedAt = now;
+        vNextAt = now + slideMs(); vChangedAt = now;
         invalidate();
     }
     public boolean viewerOpen() { return viewer != null; }
@@ -101,7 +105,7 @@ public final class ScreenView extends View {
         }
         viewer.trim(vIdx);
         long now = System.currentTimeMillis();
-        vNextAt = now + SLIDE_MS; vChangedAt = now;
+        vNextAt = now + slideMs(); vChangedAt = now;
         invalidate();
     }
 
@@ -190,11 +194,12 @@ public final class ScreenView extends View {
     /** 1.0.10: jump to a Detail page (the gear opens Settings & about). */
     public void showPage(int p) {
         if (p == FEEDBACK_PAGE && page != FEEDBACK_PAGE) pageBeforeSettings = detail ? page : 0;
+        if (p == FEEDBACK_PAGE && page != FEEDBACK_PAGE) dropFeedback();
         page = p; scroll[p] = 0; invalidate();
     }
     public boolean onSettings() { return detail && page == FEEDBACK_PAGE; }
     /** Back from Settings to the Detail page it was opened from. */
-    public void leaveSettings() { page = pageBeforeSettings; invalidate(); }
+    public void leaveSettings() { dropFeedback(); page = pageBeforeSettings; invalidate(); }
     public void setStayOn(boolean on) { stayOn = on; invalidate(); }
     /** Opens the release-notes dialog. button/action: an extra button next to Close (the Download offer), or null. */
     public void showNotes(String title, java.util.List<String> lines, String button, Runnable action) {
@@ -824,7 +829,7 @@ public final class ScreenView extends View {
     private long resetArmedUntil, resetDoneUntil;
     private void resetTapped() {
         long now = System.currentTimeMillis();
-        if (now < resetArmedUntil) { resetArmedUntil = 0; resetDoneUntil = now + 1500; actions.resetStats(); }
+        if (now < resetArmedUntil) { resetArmedUntil = 0; resetDoneUntil = now + 2000; actions.resetStats(); }
         else { resetArmedUntil = now + 3000; resetDoneUntil = 0; }
         invalidate();
     }
@@ -938,6 +943,7 @@ public final class ScreenView extends View {
         Track t = sn.track;
         p.reset(); p.setColor(0x8C080808);
         c.drawRect(X(0), Y(0), X(vw), Y(480), p);
+        if (page == FEEDBACK_PAGE) { drawSettings(c, sn); return; }   // 1.0.12-3: Settings v3, own header
 
         float navLeft = drawNav(c, t);
         float px = navLeft - 12 - NAV_H;
@@ -977,7 +983,6 @@ public final class ScreenView extends View {
         text(c, time, bx, by + 15.5f, 14, mono400, 0xB3FFFFFF, Math.max(0, px - 4 - bx));
 
         drawDots(c);
-        if (page == FEEDBACK_PAGE) { drawFeedback(c, sn); return; }
         if (page > 0) { drawStatsPage(c, sn); return; }
 
         // Two columns, zoomed, scrolling. What you check at the rack comes first: Music + Source | Signal path;
@@ -1909,7 +1914,7 @@ public final class ScreenView extends View {
         }
         drawCentered(c, "Simple", x + 4, y + 4, segW, h - 8, 17, hanken600, detail || settings ? 0xBFFFFFFF : DARK_TEXT);
         drawCentered(c, "Detail", x + 4 + segW, y + 4, segW, h - 8, 17, hanken600, detail && !settings ? DARK_TEXT : 0xBFFFFFFF);
-        hit(x, y, TOG_W / 2, h, () -> { if (detail) { if (page == FEEDBACK_PAGE) page = pageBeforeSettings; actions.toggleMode(); } });
+        hit(x, y, TOG_W / 2, h, () -> { if (detail) { if (page == FEEDBACK_PAGE) { dropFeedback(); page = pageBeforeSettings; } actions.toggleMode(); } });
         hit(x + TOG_W / 2, y, TOG_W / 2, h, () -> { if (!detail) actions.toggleMode(); else if (page == FEEDBACK_PAGE) leaveSettings(); });
     }
 
@@ -2028,8 +2033,218 @@ public final class ScreenView extends View {
     /** The part of the screen the player gives the app (it keeps its own sidebar). */
     private String appArea() { return getWidth() > 0 ? FeedbackLink.sizeText(getWidth(), getHeight()) : null; }
 
-    private void drawFeedback(Canvas c, Poller.Snapshot sn) {
+    // ---------------------------------------------------------------- Settings & about v3 (1.0.12-3)
+    // Designer handoff 2026-11-20 (hifi/files/eversolo-now-playing/design/settings-v3-handoff-2026-11-20.zip), from
+    // Michael's call: Feedback moves behind a "Send feedback" row and slides in over the settings, so the settings
+    // get the full width in two columns and every item (coming ones too) fits with no scrolling. Grid units, panel
+    // x 16 -> W-16, y 64-468. Deliberate departures: Stay in front toggles on the switch only (1.0.11 rule, Michael
+    // turned it off by accident tapping the row); no focus ring yet (the app has no remote focus system).
+
+    private static final float SP_TOP = 64, SP_H = 404;
+    private static final int FB_FILL = 0xFF131110, DIV = 0x14F4F1EC, BTN_STROKE = 0x47F4F1EC, DESC = 0x9EF4F1EC;
+    private static final long FB_ANIM = 240;
+    /** Feedback view: target state and when the last open/close started. */
+    private boolean fbOpen;
+    private long fbAt;
+    private boolean filesAllowed;
+    private int slideSecs = 10;
+    static final int[] SLIDE_STEPS = { 5, 10, 20, 30, 60 };
+
+    public void setFilesAllowed(boolean on) { filesAllowed = on; invalidate(); }
+    public void setSlideSecs(int secs) { slideSecs = secs; invalidate(); }
+    long slideMs() { return slideSecs * 1000L; }
+    public boolean feedbackOpen() { return onSettings() && fbOpen; }
+    public void openFeedback() { if (!fbOpen) { fbOpen = true; fbAt = System.currentTimeMillis(); invalidate(); } }
+    public void closeFeedback() { if (fbOpen) { fbOpen = false; fbAt = System.currentTimeMillis(); invalidate(); } }
+    private void dropFeedback() { fbOpen = false; fbAt = 0; }
+
+    /** 0 = closed, 1 = open; eased (close to cubic-bezier(0.2, 0, 0, 1)). */
+    private float fbProgress(long now) {
+        float t = Math.min(1f, (now - fbAt) / (float) FB_ANIM);
+        float e = 1 - (float) Math.pow(1 - t, 4);
+        return fbOpen ? e : 1 - e;
+    }
+
+    private void drawSettings(Canvas c, Poller.Snapshot sn) {
         maxScroll = 0;
+        long now = System.currentTimeMillis();
+        Track t = sn.track;
+
+        // ---- top bar: the Simple v4 right cluster (cog lit), compact now-playing on the left
+        float navLeft = drawNav(c, t);
+        float rowEnd = Math.min(navLeft - 12, vw - 476);
+        float pbx = rowEnd - 44;
+        drawRoundButton(c, pbx, 12, 44, true, t.state == 3 ? "pause" : "play");
+        hit(pbx, 12, 44, 44, actions::playPause);
+        drawCover(c, sn.cover, 16, 12, 44, 6, false);
+        float tx = 16 + 44 + 10, tw = pbx - 10 - tx;
+        fitText(c, t.title == null ? "" : t.title, tx, 12 + 16, 16, hanken600, LIGHT, tw);
+        float ly = 12 + 23, lx = tx;
+        if (t.badge != Track.Badge.NONE && t.badgeText != null) {
+            int col = badgeColorV4(t.badge);
+            float bw = 7 + 6 + 6 + measure(t.badgeText, 13, hanken600) + 9;
+            bw = Math.min(bw, tw);
+            roundRect(c, lx, ly, bw, 20, 10, (col & 0x00FFFFFF) | 0x26000000);
+            p.reset(); p.setAntiAlias(true); p.setColor(t.badge == Track.Badge.CHECKING ? pulse(col) : col);
+            c.drawCircle(X(lx + 7 + 3), Y(ly + 10), 3 * s, p);
+            text(c, t.badgeText, lx + 19, ly + 14.5f, 13, hanken600, col, bw - 19 - 9);
+            lx += bw + 8;
+        }
+        long pos = position(sn);
+        String time = mss(pos) + " / " + (t.durationMs > 0 ? mss(t.durationMs) : "–");
+        float timeW = measure(time, 13, mono400);
+        if (pbx - 10 - lx >= 64 + 8 + timeW) {          // the mini bar gives way first
+            float frac = t.durationMs > 0 ? Math.min(1f, pos / (float) t.durationMs) : 0;
+            roundRect(c, lx, ly + 8.5f, 64, 3, 1.5f, 0x24F4F1EC);
+            if (frac > 0) roundRect(c, lx, ly + 8.5f, 64 * frac, 3, 1.5f, LIGHT);
+            lx += 64 + 8;
+        }
+        text(c, time, lx, ly + 14.5f, 13, mono400, 0xB8F4F1EC, Math.max(0, pbx - 6 - lx));
+
+        // ---- panel
+        float px = 16, pw = vw - 32;
+        roundRect(c, px, SP_TOP, pw, SP_H, 12, 0x0AF4F1EC);
+        strokeRect(c, px + 0.5f, SP_TOP + 0.5f, pw - 1, SP_H - 1, 12, 0x12F4F1EC, 1);
+
+        float prog = fbProgress(now);
+        boolean animating = now - fbAt < FB_ANIM;
+        if (animating) postInvalidateDelayed(16);
+        if (prog < 1f) drawSettingsColumns(c, now, px, pw, !fbOpen && !animating);
+        if (prog > 0f) {
+            c.save();
+            Path clip = new Path();
+            clip.addRoundRect(new RectF(X(px), Y(SP_TOP), X(px + pw), Y(SP_TOP + SP_H)), 12 * s, 12 * s, Path.Direction.CW);
+            c.clipPath(clip);
+            float off = reducedMotion() ? 0 : (1 - prog) * pw;
+            if (reducedMotion()) c.saveLayerAlpha(X(px), Y(SP_TOP), X(px + pw), Y(SP_TOP + SP_H), Math.round(255 * prog));
+            drawFeedbackView(c, sn, px + off, pw, fbOpen && !animating);
+            if (reducedMotion()) c.restore();
+            c.restore();
+        }
+    }
+
+    private boolean reducedMotion() {
+        try {
+            return android.provider.Settings.Global.getFloat(getContext().getContentResolver(),
+                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f;
+        } catch (Exception e) { return false; }
+    }
+
+    private void drawSettingsColumns(Canvas c, long now, float px, float pw, boolean live) {
+        float inner = pw - 28, colW = (inner - 49) / 2;
+        float c1 = px + 14, c2 = c1 + colW + 49;
+        roundRect(c, c1 + colW + 24, SP_TOP + 12, 1, SP_H - 24, 0, DIV);
+        float y0 = SP_TOP;
+
+        // column 1: EVERSIGNAL + DISPLAY
+        groupHeading(c, "EVERSIGNAL", c1, y0 + 12);
+        // Version block, 94
+        float vy = y0 + 36;
+        text(c, "Version", c1, vy + 10 + 15, 16, hanken600, LIGHT, colW / 2);
+        String ver = BuildConfig.VERSION_NAME;
+        float verW = measure(ver, 16, mono500);
+        text(c, ver, c1 + colW - verW, vy + 10 + 15, 16, mono500, LIGHT, verW + 2);
+        float bw = (colW - 8) / 2, by = vy + 10 + 20 + 10;
+        drawCheckButton(c, now, c1, by, bw, live);
+        button(c, "Release notes", c1 + bw + 8, by, bw, BTN_STROKE, LIGHT, live ? this::openAllNotes : null);
+        // Send feedback, 62
+        float fy = y0 + 130;
+        rowDivider(c, c1, fy, colW);
+        drawQrIcon(c, c1, fy + 19, 0xB8F4F1EC);
+        float ftx = c1 + 24 + 14, ftw = colW - 24 - 14 - 16 - 14;
+        rowText(c, "Send feedback", "Found a bug, or got it working on your model?", ftx, fy, 62, ftw);
+        drawChevron(c, c1 + colW - 16, fy + 23, 0x80F4F1EC, true);
+        if (live) hit(c1, fy, colW, 62, this::openFeedback);
+
+        groupHeading(c, "DISPLAY", c1, y0 + 192);
+        float ry = y0 + 216;
+        rowText(c, "Frame covers", "A thin border in a colour from the album art.", c1, ry, 62, colW - 52 - 14);
+        drawSwitch(c, c1 + colW - 52, ry + 15, frame, live ? actions::toggleFrame : null);
+        ry += 62;
+        rowDivider(c, c1, ry, colW);
+        rowText(c, "Slideshow speed", "Full-Screen Album Mode", c1, ry, 62, colW - 148 - 14);
+        drawStepper(c, c1 + colW - 148, ry + 9, live);
+
+        // column 2: APP
+        groupHeading(c, "APP", c2, y0 + 12);
+        float ay = y0 + 36;
+        rowText(c, "Stay in front", "Comes back a moment after you start music from the Eversolo phone app or AirPlay.", c2, ay, 76, colW - 52 - 14);
+        drawSwitch(c, c2 + colW - 52, ay + 22, stayOn, live ? actions::toggleStay : null);
+        ay += 76;
+        rowDivider(c, c2, ay, colW);
+        if (filesAllowed) {
+            float aw = 16 + 6 + measure("Allowed", 15, hanken600);
+            rowText(c, "File access", "Reads album art and lyrics files. Never changes anything.", c2, ay, 76, colW - aw - 14);
+            drawCheck(c, c2 + colW - aw, ay + 30, 16, GREEN);
+            text(c, "Allowed", c2 + colW - aw + 22, ay + 43, 15, hanken600, GREEN, aw);
+        } else {
+            float aw = Math.max(92, measure("Allow", 15, hanken600) + 32);
+            rowText(c, "File access", "Reads album art and lyrics files. Never changes anything.", c2, ay, 76, colW - aw - 14);
+            button(c, "Allow", c2 + colW - aw, ay + 16, aw, BTN_STROKE, LIGHT, live ? actions::allowFiles : null);
+        }
+        ay += 76;
+        rowDivider(c, c2, ay, colW);
+        boolean armed = now < resetArmedUntil, done = now < resetDoneUntil;
+        if (armed || done) postInvalidateDelayed(200);
+        String rl = done ? "Cleared" : armed ? "Tap to confirm" : "Reset";
+        float rbw = Math.max(92, measure(rl, 15, hanken600) + 32 + (done ? 22 : 0));
+        String rdesc = done ? "Today's stats are cleared." : armed ? "Tap again to clear today's stats." : "Clears the Session panel on the Detail screen.";
+        rowText(c, "Today's listening stats", rdesc, c2, ay, 76, colW - rbw - 14, armed ? AMBER : DESC);
+        float rby = ay + 16;
+        if (armed) {
+            roundRect(c, c2 + colW - rbw, rby, rbw, 44, 10, 0x26E7C15A);
+            button(c, rl, c2 + colW - rbw, rby, rbw, AMBER, AMBER, live ? this::resetTapped : null);
+        } else if (done) {
+            strokeRect(c, c2 + colW - rbw + 0.75f, rby + 0.75f, rbw - 1.5f, 42.5f, 10, BTN_STROKE, 1.5f);
+            float cw = 16 + 6 + measure(rl, 15, hanken600), cx = c2 + colW - rbw + (rbw - cw) / 2;
+            drawCheck(c, cx, rby + 14, 16, GREEN);
+            text(c, rl, cx + 22, rby + 27, 15, hanken600, LIGHT, rbw);
+        } else {
+            button(c, rl, c2 + colW - rbw, rby, rbw, BTN_STROKE, LIGHT, live ? this::resetTapped : null);
+        }
+    }
+
+    /** Check for updates: idle, Checking… (pulsing blue dot), Up to date (green check), "x available" (tan, tap updates). */
+    private void drawCheckButton(Canvas c, long now, float x, float y, float w, boolean live) {
+        String cl = checkLabel != null && now < checkLabelUntil ? checkLabel : null;
+        if (cl != null) postInvalidateDelayed(100);
+        if (cl == null) { button(c, "Check for updates", x, y, w, BTN_STROKE, LIGHT, live ? actions::checkUpdates : null); return; }
+        if (cl.endsWith("available")) {
+            roundRect(c, x, y, w, 44, 10, 0x1FD9B48A);
+            strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, 42.5f, 10, ACCENT, 1.5f);
+            float cw = 16 + 6 + measure(cl, 15, hanken600), cx = x + (w - cw) / 2;
+            drawUpArrowCircle(c, cx, y + 14, ACCENT);
+            text(c, cl, cx + 22, y + 27, 15, hanken600, ACCENT, w - 22);
+            if (live) hit(x, y, w, 44, actions::update);
+            return;
+        }
+        strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, 42.5f, 10, BTN_STROKE, 1.5f);
+        boolean checking = cl.startsWith("Checking");
+        boolean ok = cl.startsWith("Up to date");
+        float lead = checking ? 8 + 8 : ok ? 16 + 6 : 0;
+        float cw = lead + measure(cl, 15, hanken600), cx = x + (w - cw) / 2;
+        if (checking) {
+            float ph = (now % 1200) / 1200f, a = 0.3f + 0.7f * (float) (0.5 + 0.5 * Math.cos(ph * 2 * Math.PI));
+            p.reset(); p.setAntiAlias(true); p.setColor(BLUE); p.setAlpha(Math.round(255 * a));
+            c.drawCircle(X(cx + 4), Y(y + 22), 4 * s, p);
+        } else if (ok) {
+            drawCheck(c, cx, y + 14, 16, GREEN);
+        }
+        text(c, cl, cx + lead, y + 27, 15, hanken600, checking ? 0xB8F4F1EC : LIGHT, w - lead);
+    }
+
+    private void drawFeedbackView(Canvas c, Poller.Snapshot sn, float px, float pw, boolean live) {
+        roundRect(c, px, SP_TOP, pw, SP_H, 12, FB_FILL);
+        strokeRect(c, px + 0.5f, SP_TOP + 0.5f, pw - 1, SP_H - 1, 12, 0x12F4F1EC, 1);
+        float y0 = SP_TOP;
+
+        // Back
+        float bx = px + 14, by = y0 + 12, bw = 10 + 18 + 6 + measure("Settings", 15, hanken600) + 16;
+        strokeRect(c, bx + 0.75f, by + 0.75f, bw - 1.5f, 42.5f, 10, BTN_STROKE, 1.5f);
+        drawChevron(c, bx + 10, by + 13, LIGHT, false);
+        text(c, "Settings", bx + 10 + 18 + 6, by + 27, 15, hanken600, LIGHT, bw);
+        if (live) hit(bx, by, bw, 44, this::closeFeedback);
+
         Map<String, String> m = sn.modelRaw;
         String model = v(m, "model"), dis = v(m, "disModel"), fw = v(m, "firmware");
         String choice = FeedbackLink.modelChoice(dis, model);
@@ -2037,130 +2252,63 @@ public final class ScreenView extends View {
         String details = FeedbackLink.details(BuildConfig.VERSION_NAME, model, dis, fw, v(m, "androidversion"), screen, appArea(), downloadDiag);
         String url = FeedbackLink.url(choice, fw, details);
 
-        // 1.0.10: Settings & about, rebuilt from Michael's design handoff (2026-11-18): two panels, no scrolling.
-        // Left "EverSignal": version + Check for updates / Release notes, Stay in front switch, today's stats Reset.
-        // Right "Feedback": title, what the code fills in, privacy line pinned at the bottom, QR vertically centred (210 in 1.0.10, 250 from 1.0.11).
-        long now = System.currentTimeMillis();
-        float top = 70, bottom = 444, ph = bottom - top;
-        float rw = 492, rx = vw - 14 - rw, lx0 = 16, lw = rx - 8 - lx0;
-
-        // ---------------- left panel
-        panel(c, "EverSignal", lx0, top, lw, ph);
-        float ix = lx0 + 14, iw = lw - 28, y = top + 27 + 10;
-        text(c, "Version", ix, y + 15, 17, hanken600, LIGHT, iw / 2);
-        String ver = BuildConfig.VERSION_NAME;
-        float vwid = measure(ver, 17, mono500);
-        text(c, ver, ix + iw - vwid, y + 15, 17, mono500, LIGHT, vwid + 2);
-        y += 20 + 9;
-        float bw = (iw - 8) / 2;
-        String cl = checkLabel != null && now < checkLabelUntil ? checkLabel : "Check for updates";
-        if (checkLabel != null && now < checkLabelUntil) postInvalidateDelayed(200);
-        outlineButton(c, cl, ix, y, bw, 44, 0x38FFFFFF, LIGHT, actions::checkUpdates);
-        outlineButton(c, "Release notes", ix + bw + 8, y, bw, 44, 0x38FFFFFF, LIGHT, this::openAllNotes);
-        y += 44 + 12;
-        divider(c, ix, y, iw);
-
-        // Stay in front: the whole row is tappable
-        float rowTop = y, swW = 48, swH = 28, tw = iw - swW - 14;
-        y += 12;
-        text(c, "Stay in front", ix, y + 15, 17, hanken600, LIGHT, tw);
-        float dy = y + 20 + 3;
-        for (String line : wrap("Comes back a moment after you start music from the Eversolo phone app or AirPlay.", 13.5f, hanken400, tw)) {
-            text(c, line, ix, dy + 14, 13.5f, hanken400, 0x99FFFFFF, tw + 4);
-            dy += 19;
+        // text block
+        float qs = 300;   // 1.0.12-3: Michael, "room to make the QR code bigger" (design 240); 280 of code, 10 margin
+        float tx = px + 16, tw = pw - qs - 32 - 16, y = y0 + 76;
+        tp.setTypeface(hanken600); tp.setTextSize(13 * s); tp.setColor(ACCENT); tp.setLetterSpacing(0.12f);
+        c.drawText("FEEDBACK", X(tx), Y(y + 12), tp);
+        tp.setLetterSpacing(0);
+        y += 16 + 8;
+        for (String line : wrap("Found a bug, or got it working on your model?", 22, hanken600, tw)) {
+            text(c, line, tx, y + 21, 22, hanken600, LIGHT, tw + 4); y += 28;
         }
-        float rowBottom = dy + 12;
-        float swX = ix + iw - swW, swY = (rowTop + rowBottom) / 2 - swH / 2;
-        roundRect(c, swX, swY, swW, swH, swH / 2, stayOn ? CHIP_GREEN : 0x33FFFFFF);
-        p.reset(); p.setAntiAlias(true); p.setColor(LIGHT);
-        c.drawCircle(X(stayOn ? swX + swW - 3 - 11 : swX + 3 + 11), Y(swY + swH / 2), 11 * s, p);
-        // 1.0.11: only the switch (plus a margin, 44 tall minimum) toggles. The whole row used to, and Michael kept
-        // turning it off by accident while tapping near it (2026-11-19).
-        hit(swX - 12, swY + swH / 2 - 22, swW + 24, 44, actions::toggleStay);
-        y = rowBottom;
-        divider(c, ix, y, iw);
-
-        // 1.0.12: Frame covers, same switch as Stay in front (the two switches sit together)
-        rowTop = y; y += 12;
-        tw = iw - swW - 14;
-        text(c, "Frame covers", ix, y + 15, 17, hanken600, LIGHT, tw);
-        dy = y + 20 + 3;
-        for (String line : wrap("A thin border in a colour from the album art.", 13.5f, hanken400, tw)) {
-            text(c, line, ix, dy + 14, 13.5f, hanken400, 0x99FFFFFF, tw + 4);
-            dy += 19;
+        y += 6;
+        for (String line : wrap("Scan the code to open the form. These details are filled in for you:", 15, hanken400, tw)) {
+            text(c, line, tx, y + 15, 15, hanken400, 0xB8F4F1EC, tw + 4); y += 21;
         }
-        rowBottom = dy + 12;
-        swY = (rowTop + rowBottom) / 2 - swH / 2;
-        roundRect(c, swX, swY, swW, swH, swH / 2, frame ? CHIP_GREEN : 0x33FFFFFF);
-        p.reset(); p.setAntiAlias(true); p.setColor(LIGHT);
-        c.drawCircle(X(frame ? swX + swW - 3 - 11 : swX + 3 + 11), Y(swY + swH / 2), 11 * s, p);
-        hit(swX - 12, swY + swH / 2 - 22, swW + 24, 44, actions::toggleFrame);
-        y = rowBottom;
-        divider(c, ix, y, iw);
-
-        // Today's listening stats: Reset, two steps. 1.0.12: moved to the bottom (Michael: "cleaner")
-        boolean armed = now < resetArmedUntil, done = now < resetDoneUntil;
-        if (armed || done) postInvalidateDelayed(200);
-        String rl = done ? "Cleared" : armed ? "Tap to confirm" : "Reset";
-        float rbw = measure(rl, 15, hanken600) + 32;
-        rowTop = y; y += 12;
-        tw = iw - rbw - 14;
-        text(c, "Today's listening stats", ix, y + 15, 17, hanken600, LIGHT, tw);
-        dy = y + 20 + 3;
-        for (String line : wrap("Clears the Session panel on the Detail screen.", 13.5f, hanken400, tw)) {
-            text(c, line, ix, dy + 14, 13.5f, hanken400, 0x99FFFFFF, tw + 4);
-            dy += 19;
-        }
-        rowBottom = dy + 12;
-        int rc = armed ? ORANGE : done ? GREEN : LIGHT;
-        outlineButton(c, rl, ix + iw - rbw, (rowTop + rowBottom) / 2 - 22, rbw, 44, armed ? ORANGE : 0x38FFFFFF, rc, this::resetTapped);
-
-        // ---------------- right panel
-        panel(c, "Feedback", rx, top, rw, ph);
-        float qs = 250, qx = rx + rw - 14 - qs, qy = top + (ph - qs) / 2;
-        float fx = rx + 14, fcw = qx - 16 - fx, fy = top + 27 + 2;
-        for (String line : wrap("Found a bug, or got it working on your model?", 18, hanken600, fcw)) {
-            text(c, line, fx, fy + 17, 18, hanken600, LIGHT, fcw + 4);
-            fy += 22;
-        }
-        fy += 6;
-        for (String line : wrap("Scan the code to open the form. These details are filled in for you:", 13, hanken400, fcw)) {
-            text(c, line, fx, fy + 13, 13, hanken400, 0x99FFFFFF, fcw + 4);
-            fy += 18;
-        }
-        fy += 12;
-        String modelV = choice != null ? choice : dis != null ? dis : model != null ? model : null;
-        String[][] rows = {
-            {"Model", modelV},
-            {"Firmware", fw != null ? fw : "N/A"},
-            {"EverSignal", BuildConfig.VERSION_NAME},
-            {"Screen", screen},
+        y += 20;
+        String modelV = choice != null ? choice : dis != null ? dis : model;
+        String[][] cells = {
+            {"MODEL", modelV},
+            {"FIRMWARE", fw != null ? fw : "N/A"},
+            {"EVERSIGNAL", BuildConfig.VERSION_NAME},
+            {"SCREEN", screen},
         };
-        float kw = 0;
-        for (String[] r : rows) kw = Math.max(kw, measure(r[0], 12, hanken400));
-        for (String[] r : rows) {
-            text(c, r[0], fx, fy + 12, 12, hanken400, 0x80FFFFFF, kw + 2);
-            float vx = fx + kw + 12, vmax = fcw - kw - 12;
-            if (r == rows[0] && choice == null) {
-                String v = r[1] != null ? r[1] + " " : "";
-                text(c, v, vx, fy + 12, 12, mono400, LIGHT, vmax);
-                text(c, "(pick yours)", vx + measure(v, 12, mono400), fy + 12, 12, mono400, 0x73FFFFFF, Math.max(0, vmax - measure(v, 12, mono400)));
-            } else {
-                text(c, r[1], vx, fy + 12, 12, mono400, LIGHT, vmax);
+        float cellW = (tw - 24) / 2;
+        for (int r = 0; r < 2; r++) {
+            float rowH = 0;
+            for (int k = 0; k < 2; k++) {
+                String[] cell = cells[r * 2 + k];
+                float cx = tx + k * (cellW + 24), cy = y;
+                tp.setTypeface(hanken600); tp.setTextSize(13 * s); tp.setColor(ACCENT); tp.setLetterSpacing(0.1f);
+                c.drawText(cell[0], X(cx), Y(cy + 12), tp);
+                tp.setLetterSpacing(0);
+                cy += 16 + 2;
+                boolean pick = r == 0 && k == 0 && choice == null;
+                String val = cell[1] == null ? "" : cell[1];
+                java.util.List<String> lines = wrap(pick ? (val.isEmpty() ? "(pick yours)" : val + " (pick yours)") : val, 14, mono400, cellW);
+                for (String line : lines) {
+                    if (pick && line.endsWith("(pick yours)")) {
+                        String head = line.substring(0, line.length() - "(pick yours)".length());
+                        text(c, head, cx, cy + 14, 14, mono400, LIGHT, cellW + 4);
+                        text(c, "(pick yours)", cx + measure(head, 14, mono400), cy + 14, 14, mono400, 0x80F4F1EC, cellW + 4);
+                    } else {
+                        text(c, line, cx, cy + 14, 14, mono400, LIGHT, cellW + 4);
+                    }
+                    cy += 19;
+                }
+                rowH = Math.max(rowH, cy - y);
             }
-            fy += 21;
+            y += rowH + 16;
         }
-        java.util.List<String> priv = wrap("EverSignal sends nothing. Your phone opens the form only if you scan. No account needed.", 11, hanken400, fcw);
-        float py = bottom - 12 - priv.size() * 16;
-        for (String line : priv) { text(c, line, fx, py + 11, 11, hanken400, 0x80FFFFFF, fcw + 4); py += 16; }
 
+        // QR column: right 16, top 16 (design: 240 at top 40; bigger tile moved up to keep the privacy line inside)
+        float qx = px + pw - 16 - qs, qy = y0 + 16;
         roundRect(c, qx, qy, qs, qs, 12, Color.WHITE);
         Bitmap b = qrBitmap(url);
         if (b != null) {
-            // 1.0.11 (Q2): every module the same whole number of screen pixels, centred in the white box.
-            // 1.0.10 stretched the bitmap to a fractional size, so blocks came out unevenly 2 and 3 pixels wide.
-            float pad = 10;
-            float innerPx = (qs - 2 * pad) * s;
+            // 1.0.11 (Q2): every module the same whole number of screen pixels, centred in the white box
+            float innerPx = (qs - 20) * s;
             int mod = Math.max(1, (int) Math.floor(innerPx / b.getWidth()));
             float sizePx = mod * b.getWidth();
             float left = (float) Math.floor(X(qx + qs / 2f) - sizePx / 2f), topPx = (float) Math.floor(Y(qy + qs / 2f) - sizePx / 2f);
@@ -2170,6 +2318,111 @@ public final class ScreenView extends View {
         } else {
             drawCentered(c, "QR code unavailable", qx, qy, qs, qs, 13, hanken500, DARK_TEXT);
         }
+        float py = qy + qs + 12;
+        for (String line : wrap("EverSignal sends nothing. Your phone opens the form only if you scan. No account needed.", 13, hanken400, qs)) {
+            text(c, line, qx, py + 13, 13, hanken400, 0xB8F4F1EC, qs + 4); py += 18;
+        }
+    }
+
+    // ---- v3 building blocks
+
+    private void groupHeading(Canvas c, String t, float x, float y) {
+        tp.setTypeface(hanken600); tp.setTextSize(13 * s); tp.setColor(ACCENT); tp.setLetterSpacing(0.12f);
+        c.drawText(t, X(x), Y(y + 24 - 4 - 3), tp);
+        tp.setLetterSpacing(0);
+    }
+
+    private void rowDivider(Canvas c, float x, float y, float w) { roundRect(c, x, y, w, 1, 0, DIV); }
+
+    private void rowText(Canvas c, String title, String desc, float x, float y, float h, float w) { rowText(c, title, desc, x, y, h, w, DESC); }
+
+    /** Title (16/20) over a description (13/18), centred in the row. */
+    private void rowText(Canvas c, String title, String desc, float x, float y, float h, float w, int descCol) {
+        java.util.List<String> lines = wrap(desc, 13, hanken400, w);
+        float ch = 20 + 2 + lines.size() * 18, top = y + (h - ch) / 2;
+        text(c, title, x, top + 15, 16, hanken600, LIGHT, w);
+        float dy = top + 22;
+        for (String line : lines) { text(c, line, x, dy + 13, 13, hanken400, descCol, w + 4); dy += 18; }
+    }
+
+    /** Outlined button: 44 tall, radius 10, 1.5 stroke, Hanken 600 15. r == null draws it without a tap target. */
+    private void button(Canvas c, String label, float x, float y, float w, int stroke, int textCol, Runnable r) {
+        strokeRect(c, x + 0.75f, y + 0.75f, w - 1.5f, 42.5f, 10, stroke, 1.5f);
+        drawCentered(c, label, x, y, w, 44, 15, hanken600, textCol);
+        if (r != null) hit(x, y, w, 44, r);
+    }
+
+    /** Switch: track 52 x 32, knob 26 inset 3. Tap target: the switch plus a margin, 44 tall. */
+    private void drawSwitch(Canvas c, float x, float y, boolean on, Runnable r) {
+        roundRect(c, x, y, 52, 32, 16, on ? CHIP_GREEN : 0x2EF4F1EC);
+        p.reset(); p.setAntiAlias(true); p.setColor(LIGHT);
+        c.drawCircle(X(on ? x + 52 - 3 - 13 : x + 3 + 13), Y(y + 16), 13 * s, p);
+        if (r != null) hit(x - 12, y + 16 - 22, 52 + 24, 44, r);
+    }
+
+    private void drawStepper(Canvas c, float x, float y, boolean live) {
+        int i = 0;
+        for (int k = 0; k < SLIDE_STEPS.length; k++) if (SLIDE_STEPS[k] == slideSecs) i = k;
+        boolean minEnd = i == 0, maxEnd = i == SLIDE_STEPS.length - 1;
+        final int idx = i;
+        stepBtn(c, x, y, false, minEnd, live ? () -> actions.setSlideSecs(SLIDE_STEPS[idx - 1]) : null);
+        String v = slideSecs + " s";
+        drawCentered(c, v, x + 44, y, 60, 44, 16, mono500, LIGHT);
+        stepBtn(c, x + 44 + 60, y, true, maxEnd, live ? () -> actions.setSlideSecs(SLIDE_STEPS[idx + 1]) : null);
+    }
+
+    private void stepBtn(Canvas c, float x, float y, boolean plus, boolean end, Runnable r) {
+        int a = end ? 0x4D : 0xFF;
+        int stroke = (Math.round(0x47 * a / 255f) << 24) | 0xF4F1EC, col = (a << 24) | 0xF4F1EC;
+        strokeRect(c, x + 0.75f, y + 0.75f, 42.5f, 42.5f, 10, stroke, 1.5f);
+        p.reset(); p.setAntiAlias(true); p.setColor(col); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(1.8f * s); p.setStrokeCap(Paint.Cap.ROUND);
+        c.drawLine(X(x + 22 - 8), Y(y + 22), X(x + 22 + 8), Y(y + 22), p);
+        if (plus) c.drawLine(X(x + 22), Y(y + 22 - 8), X(x + 22), Y(y + 22 + 8), p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+        if (!end && r != null) hit(x, y, 44, 44, r);
+    }
+
+    private void drawCheck(Canvas c, float x, float y, float sz, int col) {
+        p.reset(); p.setAntiAlias(true); p.setColor(col); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(2f * s);
+        p.setStrokeCap(Paint.Cap.ROUND); p.setStrokeJoin(Paint.Join.ROUND);
+        Path path = new Path();
+        path.moveTo(X(x + sz * 0.15f), Y(y + sz * 0.52f));
+        path.lineTo(X(x + sz * 0.40f), Y(y + sz * 0.78f));
+        path.lineTo(X(x + sz * 0.88f), Y(y + sz * 0.24f));
+        c.drawPath(path, p);
+        p.setStrokeCap(Paint.Cap.BUTT); p.setStrokeJoin(Paint.Join.MITER);
+    }
+
+    private void drawUpArrowCircle(Canvas c, float x, float y, int col) {
+        p.reset(); p.setAntiAlias(true); p.setColor(col); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(1.5f * s); p.setStrokeCap(Paint.Cap.ROUND);
+        c.drawCircle(X(x + 8), Y(y + 8), 7.25f * s, p);
+        c.drawLine(X(x + 8), Y(y + 11.5f), X(x + 8), Y(y + 4.5f), p);
+        c.drawLine(X(x + 5), Y(y + 7.5f), X(x + 8), Y(y + 4.5f), p);
+        c.drawLine(X(x + 11), Y(y + 7.5f), X(x + 8), Y(y + 4.5f), p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+    }
+
+    /** Chevron in a 16 (right) or 18 (left) box. */
+    private void drawChevron(Canvas c, float x, float y, int col, boolean right) {
+        float sz = right ? 16 : 18;
+        p.reset(); p.setAntiAlias(true); p.setColor(col); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(1.8f * s);
+        p.setStrokeCap(Paint.Cap.ROUND); p.setStrokeJoin(Paint.Join.ROUND);
+        Path path = new Path();
+        float a = sz * 0.36f, b = sz * 0.64f;
+        if (right) { path.moveTo(X(x + a), Y(y + sz * 0.2f)); path.lineTo(X(x + b), Y(y + sz / 2)); path.lineTo(X(x + a), Y(y + sz * 0.8f)); }
+        else { path.moveTo(X(x + b), Y(y + sz * 0.2f)); path.lineTo(X(x + a), Y(y + sz / 2)); path.lineTo(X(x + b), Y(y + sz * 0.8f)); }
+        c.drawPath(path, p);
+        p.setStrokeCap(Paint.Cap.BUTT); p.setStrokeJoin(Paint.Join.MITER);
+    }
+
+    /** 24-unit QR line icon: three 7-unit finder squares plus a few modules bottom right. */
+    private void drawQrIcon(Canvas c, float x, float y, int col) {
+        p.reset(); p.setAntiAlias(true); p.setColor(col); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(1.5f * s);
+        float[][] sq = {{2, 2}, {15, 2}, {2, 15}};
+        for (float[] q : sq) c.drawRoundRect(new RectF(X(x + q[0]), Y(y + q[1]), X(x + q[0] + 7), Y(y + q[1] + 7)), 1 * s, 1 * s, p);
+        p.setStyle(Paint.Style.FILL);
+        float[][] mods = {{15, 15}, {19.5f, 15}, {15, 19.5f}, {19.5f, 19.5f}};
+        for (int i = 0; i < mods.length; i++) if (i != 1) c.drawRect(X(x + mods[i][0]), Y(y + mods[i][1]), X(x + mods[i][0] + 2.5f), Y(y + mods[i][1] + 2.5f), p);
     }
 
     /** Outlined button (design: radius 8, 1.5 border), label centred; at least 44 tall for the hit target. */
@@ -2345,7 +2598,7 @@ public final class ScreenView extends View {
                     return true;
                 }
                 if (dragging) return true;
-                if (notes == null && info == null && detail && Math.abs(dx) > 60 * s && Math.abs(dx) > Math.abs(dy) * 1.5f) {
+                if (notes == null && info == null && detail && !feedbackOpen() && Math.abs(dx) > 60 * s && Math.abs(dx) > Math.abs(dy) * 1.5f) {
                     page = page == FEEDBACK_PAGE ? (dx < 0 ? 0 : CAROUSEL - 1) : (page + (dx < 0 ? 1 : CAROUSEL - 1)) % CAROUSEL;
                     invalidate();
                     return true;
@@ -2380,7 +2633,7 @@ public final class ScreenView extends View {
         }
         if (e.getAction() == MotionEvent.ACTION_SCROLL && detail && info == null) {
             float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL), h = e.getAxisValue(MotionEvent.AXIS_HSCROLL);
-            if (h != 0) {
+            if (h != 0 && !feedbackOpen()) {
                 page = page == FEEDBACK_PAGE ? (h > 0 ? 0 : CAROUSEL - 1) : (page + (h > 0 ? 1 : CAROUSEL - 1)) % CAROUSEL;
                 invalidate();
                 return true;
