@@ -55,6 +55,9 @@ That's what it's for: the player knows what it's doing to your music, it just do
 
 ### From the Eversolo Facebook groups
 
+> "I just installed it. Very impressive.😊 It's my new favourite toy.😁"<br>
+> **Ian J.**
+
 > "Great app! I realized that my HDMI output was no longer in Native DSD because I had left the EQ set to ON. So it was still in PCM!"<br>
 > **Pierre C.**
 
