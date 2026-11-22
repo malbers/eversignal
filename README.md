@@ -128,6 +128,9 @@ Tap the cover to see every picture for the album, booklet scans included, full s
 |---|---|
 | ![Full-Screen Album Mode: a gatefold booklet](docs/screenshots/4-fullscreen-booklet-1.jpg) | ![Full-Screen Album Mode: a booklet spread](docs/screenshots/4-fullscreen-booklet-2.jpg) |
 
+> "I think booklets are an essential part of the experience… Until now, this feature hadn't been available on the DMP A6. And now, thanks to you, it's available, and I'm enjoying it immensely. … So far, I'm not aware of any competitor that offers something similar."<br>
+> **Václav H.**
+
 ### Settings & about: the gear
 
 Tap the **gear** at the top (next to VU) for the Settings & about page. Tap it again to go back.
