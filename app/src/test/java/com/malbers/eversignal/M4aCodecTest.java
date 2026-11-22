@@ -59,6 +59,21 @@ public class M4aCodecTest {
         assertEquals("mp4a", M4aCodec.sniff(file(FTYP, atom("moov", trak("avc1"), trak("mp4a")))));
     }
 
+    /** The dec3 box of the real BINI "Unang Kilig" Atmos file (Apple Music, 768 kbps), 2026-11-22: 5.1 + Atmos. */
+    @Test public void realAtmosHeader() {
+        byte[] dec3 = {0x18, 0x00, 0x20, 0x0f, 0x00, 0x01, 0x10};
+        M4aCodec.Info i = M4aCodec.dec3(dec3);
+        assertEquals(6.0, i.channels, 0.01);
+        assertTrue(i.atmos);
+        assertFalse(M4aCodec.dec3(new byte[]{0x18, 0x00, 0x20, 0x0f, 0x00}).atmos);   // no extension byte: plain E-AC-3
+
+        Track t = dolbyAsReported(16, 2, "917.86 Kbps");   // the Library's 16-bit / 2 ch
+        t.applyM4aCodec(i.codec, i.channels, i.atmos, true);
+        assertEquals(6.0, t.channels, 0.01);
+        assertTrue(t.badgeNote.startsWith("E-AC-3 · Dolby Atmos"));
+        assertEquals(Track.Badge.LOSSY, t.badge);
+    }
+
     @Test public void garbageIsNull() throws Exception {
         assertNull(M4aCodec.sniff(file("not an mp4 at all".getBytes(StandardCharsets.US_ASCII))));
         assertNull(M4aCodec.sniff(new File("/no/such/file.m4a")));
@@ -83,7 +98,7 @@ public class M4aCodecTest {
             assertEquals("E-AC-3", t.container);
             assertTrue(t.lossy && t.dolby);
             assertNull(t.bits);
-            assertNull(t.channels);
+            assertNull(t.channels);   // codec only (no header channels): never the player's count
         }
     }
 

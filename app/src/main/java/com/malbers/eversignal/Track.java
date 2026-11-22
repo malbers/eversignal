@@ -57,6 +57,8 @@ public final class Track {
     public boolean codecUnknown;
     /** 1.0.12.7: the .m4a holds Dolby (E-AC-3 / AC-3 / AC-4): decoded on the player, and its bits/channels are unreliable. */
     public boolean dolby;
+    /** 1.0.12.8: E-AC-3 with the Atmos (JOC) flag in the file header. */
+    public boolean atmos;
     public String outCodec;
     public Double outRateHz;
     public String iface, ifaceRaw;
@@ -221,7 +223,10 @@ public final class Track {
      * 1.0.12.7: the codec read from the .m4a file itself (M4aCodec), replacing the 1.0.8 guess. null = unknown
      * (file access off, a stream, or unreadable). Returns true when it changed anything (badge recomputed).
      */
-    boolean applyM4aCodec(String fourcc, boolean settled) {
+    boolean applyM4aCodec(String fourcc, boolean settled) { return applyM4aCodec(fourcc, null, false, settled); }
+
+    /** 1.0.12.8: plus the channel count and Atmos flag the Dolby header carries (the player's own count is unreliable). */
+    boolean applyM4aCodec(String fourcc, Double headerChannels, boolean headerAtmos, boolean settled) {
         if (!m4a || fourcc == null) return false;
         String c; boolean ly, dl = false;
         switch (fourcc) {
@@ -234,10 +239,13 @@ public final class Track {
             case "ac-4": c = "AC-4"; ly = true; dl = true; break;
             default: return false;
         }
-        boolean changed = codecUnknown || !c.equals(container) || ly != lossy || dl != dolby;
-        container = c; lossy = ly; dolby = dl; codecUnknown = false;
-        // Dolby: the bit depth is the decoder's (32 or 16) and the channel count depends on how it was started
-        if (dolby) { bits = null; channels = null; }
+        boolean at = dl && headerAtmos;
+        Double ch = dl ? headerChannels : channels;
+        boolean changed = codecUnknown || !c.equals(container) || ly != lossy || dl != dolby || at != atmos
+            || (ch == null ? channels != null : !ch.equals(channels));
+        container = c; lossy = ly; dolby = dl; atmos = at; codecUnknown = false;
+        // Dolby: the bit depth is the decoder's (32 or 16); channels come from the header, never the player
+        if (dolby) { bits = null; channels = headerChannels; }
         if (changed) { formatShort(); computeBadge(settled); }
         return changed;
     }
@@ -300,7 +308,8 @@ public final class Track {
                 + (eosOn() ? " · EOS on" : " · EOS: check");
         } else if (lossy) {
             badge = Badge.LOSSY; badgeText = "Lossy (" + container + ")";
-            badgeNote = ownPlayer ? (bitrate == null ? container : container + " · " + bitrate) : playerLabel + " · no lossless path";
+            String what = atmos ? container + " · Dolby Atmos" : container;
+            badgeNote = ownPlayer ? (bitrate == null ? what : what + " · " + bitrate) : playerLabel + " · no lossless path";
         } else if (outCodec != null && outRateHz != null && rateHz != null) {
             boolean same = Math.abs(outRateHz - rateHz) < 1;
             if (same && !eq && !dsp && !volumeOk) {

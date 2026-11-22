@@ -117,7 +117,8 @@ public final class Poller implements Runnable {
                 t.applyQueueFile(queueItem, now - keyChangedAt >= SETTLE_MS);   // .m4a: the queue has the true rate
                 // 1.0.12.7: .m4a codec from the file. Not on a track's first poll: playingFrom is still the last track's
                 // until readQueue runs below.
-                t.applyM4aCodec(changed ? null : codecOf(t), now - keyChangedAt >= SETTLE_MS);
+                M4aCodec.Info ci = changed ? null : codecOf(t);
+                if (ci != null) t.applyM4aCodec(ci.codec, ci.channels, ci.atmos, now - keyChangedAt >= SETTLE_MS);
                 hold.apply(t, t.state == 3 && now - lastStartAt >= SETTLE_MS && now - keyChangedAt >= SETTLE_MS, now);
                 if (recheck) { recheck = false; settle.reset(); }   // 1.0.12-2: back from another screen
                 settle.apply(t, now);   // after the hold: only decides when the badge may change
@@ -392,10 +393,11 @@ public final class Poller implements Runnable {
     private volatile boolean filesOn = true;
 
     /** 1.0.12.7: the playing .m4a's codec, read once per file from its header (File access on only). */
-    private String codecPath, codecValue;
-    private String codecOf(Track t) {
+    private String codecPath;
+    private M4aCodec.Info codecValue;
+    private M4aCodec.Info codecOf(Track t) {
         if (!t.m4a || !filesOn || !ArtLoader.isLocal(playingFrom) || !M4aCodec.isM4a(playingFrom)) return null;
-        if (!playingFrom.equals(codecPath)) { codecPath = playingFrom; codecValue = M4aCodec.sniff(new java.io.File(playingFrom)); }
+        if (!playingFrom.equals(codecPath)) { codecPath = playingFrom; codecValue = M4aCodec.read(new java.io.File(playingFrom)); }
         return codecValue;
     }
     void setFilesOn(boolean on) { filesOn = on; }
