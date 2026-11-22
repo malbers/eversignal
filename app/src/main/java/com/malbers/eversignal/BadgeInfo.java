@@ -81,26 +81,24 @@ final class BadgeInfo {
                 if (note != null) l.add(note);
                 volumeLine(l, t);
                 break;
-            case EXTERNAL_APP:
+            case EXTERNAL_APP: {
+                // 1.0.12.10 (Michael): action first, the "why no verdict" in one line at the end
+                String app = t.playerLabel == null ? "The app" : t.playerLabel;
                 l.add("Android app: " + (t.playerLabel == null ? "an app" : t.playerLabel) + " is playing on the Eversolo itself.");
                 if (note != null) l.add(note);
-                l.add("Its audio goes through Android. The player doesn't reliably report the app's source rate");
-                l.add("(with EOS off it reports Android's rate, not the file's), so there's no Bit-perfect verdict here.");
-                if (t.eosOn()) l.add("EOS is on: the output rate isn't one Android forces, so the app's own rate is getting through.");
                 if (t.eosOffMaybe()) {
-                    l.add("EOS off? This app's music is going out at 192 kHz. Either the track really is 192 kHz,");
-                    l.add("or EOS is off and Android is resampling everything to 192.");
-                    l.add("Quick check: the app shows the track's format (Apple Music: under the player, e.g. 24-bit / 192 kHz).");
-                    l.add("If it shows anything lower, turn EOS on:");
+                    l.add("Either this track really is 192 kHz, or EOS is off and Android is resampling everything to 192.");
+                    l.add("Quick check: " + app + " shows the track's format. If it's lower than 192 kHz, turn EOS on:");
+                } else if (t.eosOn()) {
+                    l.add("EOS is on: the output rate isn't one Android forces, so the app's own rate is getting through.");
                 } else {
-                    l.add("Keep EOS on. With it off, Android picks the rate for apps: 192 kHz out of USB,");
-                    l.add("44.1 kHz out of optical (measured on an A6), whatever the track is.");
+                    l.add("Keep EOS on. With it off, Android picks the rate for apps (192 kHz out of USB, 44.1 kHz out of optical).");
                 }
-                l.add("•  Settings › Playback › Eversolo Original sampling-rate audio engine");
-                if (!t.eosOn() && !t.eosOffMaybe()) l.add("EverSignal can't read that switch; it shows \"EOS on\" when the output rate proves it.");
-                l.add("A change to EOS takes effect from the next track.");
+                if (!t.eosOn()) l.add("•  Settings › Playback › Eversolo Original sampling-rate audio engine (applies from the next track)");
+                l.add("No Bit-perfect verdict for apps: the player doesn't report the app's own format.");
                 volumeLine(l, t);
                 break;
+            }
             case UNVERIFIED:
                 l.add("No verdict: an .m4a can hold ALAC (lossless), AAC or Dolby (lossy),");
                 l.add("and the player's own description of it isn't reliable (a Dolby Atmos file showed as 16-bit stereo).");

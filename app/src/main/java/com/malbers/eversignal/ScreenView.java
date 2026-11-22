@@ -92,6 +92,7 @@ public final class ScreenView extends View {
 
     /** The QUALITY tile's word, shared with the full-screen stats line. */
     private static String quality(Track t) {
+        if (t.externalApp) return "Format not reported";   // 1.0.12.10: a blank read as broken (Michael)
         return t.quality != null ? t.quality
             : t.dsd ? "DSD" : t.lossy ? "Lossy" : "hires".equals(t.formatClass()) ? "Hi-res" : t.rateHz == null ? null : "CD quality";
     }
@@ -397,6 +398,7 @@ public final class ScreenView extends View {
 
     /** "44.1 kHz · 16-bit · 2 ch" / "2.82 MHz · 1-bit · 5 ch"; empty when the player reports no rate. */
     private static String qualityLine(Track t) {
+        if (t.externalApp) return "by the app";
         if (t.rateHz == null) return "";
         String dc = Track.depthChannels(t.bits, t.channels);
         return Track.rateText(t.rateHz, t.dsd) + (dc.isEmpty() ? "" : " · " + dc);
@@ -495,7 +497,7 @@ public final class ScreenView extends View {
             s2 = Track.depthChannels(1.0, t.channels);
         } else {
             src = t.container != null ? t.container : t.codec != null ? t.codec : sourceChip(t);
-            s1 = t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
+            s1 = t.externalApp ? "format not reported" : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
             s2 = t.bits == null ? (t.lossy && t.bitrate != null ? t.bitrate : "") : Math.round(t.bits) + "-bit";
         }
         String out, o1;
@@ -700,7 +702,7 @@ public final class ScreenView extends View {
         else {
             // never N/A on Simple: no format reported -> the source's own name, e.g. "Apple Music"
             src = t.container != null ? t.container : t.codec != null ? t.codec : sourceChip(t);
-            s1 = t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
+            s1 = t.externalApp ? "format not reported" : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
             s2 = t.bits == null ? (t.lossy && t.bitrate != null ? t.bitrate : "") : Math.round(t.bits) + "-bit";
         }
         String out, o1;

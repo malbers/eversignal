@@ -141,7 +141,7 @@ public class BadgeInfoTest {
         assertEquals(Track.Badge.EXTERNAL_APP, a.badge);
         assertEquals("48kHz out · EOS on", a.badgeNote);
         assertFalse(a.badgeNote.contains(" in "));
-        assertTrue(all(BadgeInfo.lines(a)).contains("next track"));
+        assertTrue(all(BadgeInfo.lines(app("USB", 192000))).contains("next track"));
     }
 
     /** Measured 2026-11-22, A6 Gen 1 + SU-9: EOS off pins apps at 192 kHz on USB and 44.1 kHz on optical. */
@@ -152,7 +152,8 @@ public class BadgeInfoTest {
         assertFalse(app("OPT", 44100).eosOn());
         assertFalse(app("HDMI", 48000).eosOn());      // not measured: check
         assertEquals("192kHz out · EOS off?", app("USB", 192000).badgeNote);   // EOS off, unless a real 192k track
-        assertTrue(all(BadgeInfo.lines(app("USB", 192000))).contains("Quick check"));
+        assertTrue(all(BadgeInfo.lines(app("USB", 192000))).contains("Quick check: Apple Music shows the track's format"));
+        assertFalse(all(BadgeInfo.lines(app("USB", 48000))).contains("Settings › Playback"));   // EOS proven on: no instruction
         assertEquals("44.1kHz out", app("OPT", 44100).badgeNote);              // optical: most music is 44.1, stay quiet
         assertFalse(app("OPT", 44100).eosOffMaybe());
         assertTrue(all(BadgeInfo.lines(app("OPT", 44100))).contains("Keep EOS on"));
