@@ -1289,6 +1289,7 @@ public final class ScreenView extends View {
         final int kind;
         boolean list;                                       // chips drawn one per row (Track flags only)
         boolean rowsFirst;                                  // 1.0.12.13: rows, then text, then wraps (Dynamic range)
+        float wrapSize = 11;                                // 1.0.12.15: smaller explanation text (Dynamic range)
         final List<String[]> rows = new ArrayList<>();
         final List<String> text = new ArrayList<>();
         final List<String[]> wraps = new ArrayList<>();     // {key, value}: value wrapped in full
@@ -1402,7 +1403,7 @@ public final class ScreenView extends View {
         float iw = w - 22, h = 27 + 9;
         h += sec.text.size() * 15;
         for (String[] r : sec.rows) h += rowH(r[0], r[1], iw);
-        for (String[] wr : sec.wraps) h += (wr[0] == null ? 0 : 15) + wrapLines(wr[1], iw, 11).size() * 14 + 2;
+        for (String[] wr : sec.wraps) h += (wr[0] == null ? 0 : 15) + wrapLines(wr[1], iw, sec.wrapSize).size() * (sec.wrapSize + 3) + 2;
         if (!sec.chips.isEmpty()) h += sec.list ? sec.chips.size() * LIST_ROW + 2 : chipRows(sec.chips, iw) * (CHIP_H + CHIP_GAP) + 2;
         if (sec.empty()) h += 15;
         if (!sec.buttons.isEmpty()) h += BTN_H + 8;
@@ -1415,15 +1416,15 @@ public final class ScreenView extends View {
             if (wr[0] != null) { text(c, wr[0], ix, ry + 11, 11.5f, hanken400, 0x80FFFFFF, iw); ry += 15; }
             int q = wr[1].indexOf('?');     // the query part (a signed token) is drawn dimmer
             int at = 0;
-            for (String line : wrapLines(wr[1], iw, 11)) {
+            for (String line : wrapLines(wr[1], iw, sec.wrapSize)) {
                 float lx = ix;
-                tp.setTypeface(mono400); tp.setTextSize(11 * s);
+                tp.setTypeface(mono400); tp.setTextSize(sec.wrapSize * s);
                 int split = q < 0 ? line.length() : Math.max(0, Math.min(line.length(), q - at));
                 String a = line.substring(0, split), b = line.substring(split);
-                if (!a.isEmpty()) { tp.setColor(0xEBFFFFFF); c.drawText(a, X(lx), Y(ry + 11), tp); lx += tp.measureText(a) / s; }
-                if (!b.isEmpty()) { tp.setColor(0x66FFFFFF); c.drawText(b, X(lx), Y(ry + 11), tp); }
+                if (!a.isEmpty()) { tp.setColor(0xEBFFFFFF); c.drawText(a, X(lx), Y(ry + sec.wrapSize), tp); lx += tp.measureText(a) / s; }
+                if (!b.isEmpty()) { tp.setColor(0x66FFFFFF); c.drawText(b, X(lx), Y(ry + sec.wrapSize), tp); }
                 at += line.length();
-                ry += 14;
+                ry += sec.wrapSize + 3;
             }
             ry += 2;
         }
@@ -1566,8 +1567,14 @@ public final class ScreenView extends View {
                 d.text.add(shortN.get(k) + "\t" + String.format(Locale.US, "DR%d · %.1f / %.1f dB", i.rounded(), i.peakDb, i.rmsDb));
             }
         }
-        d.wrap(null, "DR = how much the master was compressed: 14+ very dynamic · 8-13 healthy · 7 or below heavily compressed."
-            + " Same method as foobar's DR Meter.");
+        // 1.0.12.15 (Michael): explain peak and RMS too, smaller text
+        d.wrapSize = 10;
+        d.wrap(null, "DR = how much the master was compressed: 14+ very dynamic · 8-13 healthy · 7 or below heavily compressed.");
+        d.wrap(null, "Peak = the loudest moment. 0 dB is the most a file can hold; a master that stops at exactly the same peak"
+            + " on every track (often -1.0 dB) has a limiter on it.");
+        d.wrap(null, "RMS = the average loudness. The closer to 0, the louder and more squashed. DR is roughly the gap between"
+            + " the loud passages and the peaks.");
+        d.wrap(null, "Same method as foobar's DR Meter.");
         if (drTrackRunning || (a != null && a.running)) d.button("Cancel", actions::cancelDr);
         else {
             if (drTrack == null) d.button("Measure track", actions::measureDrTrack);
