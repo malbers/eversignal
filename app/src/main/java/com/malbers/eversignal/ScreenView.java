@@ -1406,6 +1406,7 @@ public final class ScreenView extends View {
         if (!sec.chips.isEmpty()) h += sec.list ? sec.chips.size() * LIST_ROW + 2 : chipRows(sec.chips, iw) * (CHIP_H + CHIP_GAP) + 2;
         if (sec.empty()) h += 15;
         if (!sec.buttons.isEmpty()) h += BTN_H + 8;
+        if (sec.rowsFirst) h += (sec.text.isEmpty() ? 0 : 8) + (sec.wraps.isEmpty() ? 0 : 8);   // the dividers
         return h;
     }
 
@@ -1462,7 +1463,9 @@ public final class ScreenView extends View {
         }
         if (sec.rowsFirst) {
             for (String[] r : sec.rows) ry = row(c, r[0], r[1], ix, ry, iw);
+            if (!sec.text.isEmpty()) ry = divider(c, ix, ry, iw);    // 1.0.12.14: results | list | explanation
             ry = drawText(c, sec, ix, ry, iw);
+            if (!sec.wraps.isEmpty()) ry = divider(c, ix, ry, iw);
             ry = drawWraps(c, sec, ix, ry, iw);
         } else {
             ry = drawWraps(c, sec, ix, ry, iw);

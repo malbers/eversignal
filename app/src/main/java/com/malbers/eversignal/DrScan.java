@@ -113,9 +113,17 @@ final class DrScan {
 
     private static String key(File f) { return f.getAbsolutePath() + "|" + f.length() + "|" + f.lastModified(); }
 
+    /** 1.0.12.14: an unreadable file is remembered too (DR = -999), so a complete album stays complete after a restart. */
+    private static final double UNREADABLE = -999;
+
     static synchronized Item cached(File f) {
         double[] v = cache == null || f == null ? null : cache.get(key(f));
-        return v == null ? null : new Item(f.getName(), v[0], v[1], v[2]);
+        return v == null || v[0] == UNREADABLE ? null : new Item(f.getName(), v[0], v[1], v[2]);
+    }
+
+    static synchronized boolean knownUnreadable(File f) {
+        double[] v = cache == null || f == null ? null : cache.get(key(f));
+        return v != null && v[0] == UNREADABLE;
     }
 
     private static synchronized void put(File f, Item i) {
@@ -139,7 +147,11 @@ final class DrScan {
         Album a = new Album(dir.getPath());
         File[] fs = tracks(dir);
         a.total = fs.length;
-        for (File f : fs) { Item i = cached(f); if (i != null) { a.items.add(i); a.done++; } }
+        for (File f : fs) {
+            Item i = cached(f);
+            if (i != null) { a.items.add(i); a.done++; }
+            else if (knownUnreadable(f)) { a.failed++; a.done++; }
+        }
         return a;
     }
 
@@ -154,8 +166,9 @@ final class DrScan {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
         Item i = fresh ? null : cached(f);
         if (i != null) return i;
+        if (!fresh && knownUnreadable(f)) return null;
         i = decode(f, cancel);
-        if (i != null && !cancel.get()) put(f, i);
+        if (!cancel.get()) put(f, i != null ? i : new Item(f.getName(), UNREADABLE, 0, 0));
         return cancel.get() ? null : i;
     }
 
