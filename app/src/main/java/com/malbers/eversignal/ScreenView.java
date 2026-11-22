@@ -470,7 +470,7 @@ public final class ScreenView extends View {
         for (int i = 0; i < 4; i++) {
             boolean pending = (paused || checking) && i >= 2;
             int valCol = i == changed ? AMBER : LIGHT;
-            int subCol = i == changed ? AMBER : (changed >= 0 && i > changed) || checking || (t.externalApp && i >= 1 && !t.eosOn()) ? NEUTRAL_SUB : GREEN;
+            int subCol = i == changed ? AMBER : (changed >= 0 && i > changed) || checking || (t.externalApp && (i == 0 || !t.eosOn())) ? NEUTRAL_SUB : GREEN;   // 1.0.12.11: app source sub-line is grey
             int alpha = paused && i >= 2 ? 0x73 : checking && i >= 2 ? 0x66 : 0xFF;
             labelV4(c, n[i][0], nx, y + 12 + 13, 0.1f);
             String val = paused && i >= 2 ? "…" : n[i][1];
@@ -497,7 +497,7 @@ public final class ScreenView extends View {
             s2 = Track.depthChannels(1.0, t.channels);
         } else {
             src = t.container != null ? t.container : t.codec != null ? t.codec : sourceChip(t);
-            s1 = t.externalApp ? "format not reported" : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
+            s1 = t.externalApp ? "not reported" : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
             s2 = t.bits == null ? (t.lossy && t.bitrate != null ? t.bitrate : "") : Math.round(t.bits) + "-bit";
         }
         String out, o1;
@@ -702,7 +702,7 @@ public final class ScreenView extends View {
         else {
             // never N/A on Simple: no format reported -> the source's own name, e.g. "Apple Music"
             src = t.container != null ? t.container : t.codec != null ? t.codec : sourceChip(t);
-            s1 = t.externalApp ? "format not reported" : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
+            s1 = t.externalApp ? "not reported" : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
             s2 = t.bits == null ? (t.lossy && t.bitrate != null ? t.bitrate : "") : Math.round(t.bits) + "-bit";
         }
         String out, o1;

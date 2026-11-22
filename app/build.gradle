@@ -10,8 +10,8 @@ android {
         applicationId 'com.malbers.eversignal'
         minSdk 26
         targetSdk 29
-        versionCode 180
-        versionName '1.0.12.10'
+        versionCode 181
+        versionName '1.0.12.11'
     }
 
     buildFeatures { buildConfig true }
