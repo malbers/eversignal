@@ -1,4 +1,4 @@
-![EverSignal Simple screen: DSD128 from the library, EQ off, DSD native to the USB DAC, with the EQ, VU and Settings buttons](docs/screenshots/1-simple-v1011.jpg)
+![EverSignal Simple screen: a 24-bit / 192 kHz FLAC from the library, Bit-perfect to the USB DAC, Hi-res, DR13](docs/screenshots/1-simple-v1013.jpg)
 
 # EverSignal: now-playing stats for the Eversolo DMP-A6
 
@@ -43,7 +43,7 @@ I always wanted to know what my DMP-A6 actually sends to my DAC. Is that TIDAL t
 
 | The stock player screen | The same track in EverSignal |
 |---|---|
-| ![Stock Eversolo player](docs/screenshots/0-stock-player-v1011.jpg) | ![EverSignal Simple](docs/screenshots/1-simple-v1011.jpg) |
+| ![Stock Eversolo player](docs/screenshots/0-stock-player-v1013.jpg) | ![EverSignal Simple](docs/screenshots/1d-simple-dr8.jpg) |
 
 ## What people are saying
 
@@ -81,9 +81,9 @@ That's what it's for: the player knows what it's doing to your music, it just do
 
 Big, readable from across the room:
 
-- **Signal path:** Source → Processing → Output → Port.
-- **Verdict badge:** Bit-perfect, Resampled, EQ active and more. Tap it to see why.
-- **Stat tiles:** quality, rate, bitrate, file size, input → output.
+- **Verdict badge:** Bit-perfect, Resampled, EQ active and more, with the quality next to it (CD quality, Hi-res, DSD) and the format: rate, bit depth, channels, and the track's **DR** once you've measured it. Tap the badge to see why.
+- **Signal path:** Source → Processing → Output → Port. Green while your music passes untouched; the step that changes it turns amber.
+- **Stats row:** bitrate, file size and input.
 - **Source:** TIDAL, Apple Music, Amazon Music, AirPlay, or Library for your own files.
 - **Controls:** play/pause, next, previous, up next, **VU** for the Eversolo's own meters, and **EQ** to open the Eversolo's EQ app (lit like the EQ active badge when EQ is on).
 - **made by @malbers:** opens my YouTube channel.
@@ -106,16 +106,40 @@ Tap **Detail**, then swipe left or right through five pages:
 
 Missing info shows as N/A, so you can see what each source reports.
 
+### Dynamic range: how squashed is your master?
+
+New in 1.0.13. On Detail page 2 (Track & file), tap **Measure track** or **Measure album**. EverSignal reads your files right on the Eversolo and shows each track's **DR**, **peak** and **RMS**, plus the album's DR. It's the same method as foobar2000's DR Meter, and on the same file it gives the same numbers.
+
+- **DR** is how much the master was compressed: 14 and up is very dynamic, 8 to 13 healthy, 7 or below heavily compressed (the "loudness war").
+- **Peak** is the loudest moment. A master that stops at exactly the same peak on every track (often -1.0 dB) has a limiter on it.
+- **RMS** is the average loudness. The closer to 0, the louder and more squashed.
+
+Measured once, remembered: the next time you play that album, its DR is just there, and the track's DR shows on the Simple screen too. It only reads your own files (not streams or apps), only when you tap Measure, and your music keeps playing while it works. Thanks to Pierre C. for the idea.
+
+| One album, from DR6 to DR13: every track stops at -1.0 dB | The track's DR on the Simple screen |
+|---|---|
+| ![Dynamic range for a whole album](docs/screenshots/2-detail-dr.jpg) | ![DR8 on the Simple screen](docs/screenshots/1d-simple-dr8.jpg) |
+
+### Full-Screen Album Mode
+
+Tap the cover to see every picture for the album, booklet scans included, full screen. It flips through them on its own (set the speed on the Settings page), swipe to step through, tap to close. Here it is on Václav H.'s DMP-A6, with his booklet scans (thank you, Václav):
+
+| | |
+|---|---|
+| ![Full-Screen Album Mode: a gatefold booklet](docs/screenshots/4-fullscreen-booklet-1.jpg) | ![Full-Screen Album Mode: a booklet spread](docs/screenshots/4-fullscreen-booklet-2.jpg) |
+
 ### Settings & about: the gear
 
 Tap the **gear** at the top (next to VU) for the Settings & about page. Tap it again to go back.
 
-![Settings & about](docs/screenshots/3-settings.jpg)
+![Settings & about](docs/screenshots/3-settings-v1013.jpg)
 
 - **Version**, with **Check for updates** and **Release notes** (what changed in every version, right on the player).
-- **Stay in front**: an on/off switch (see below).
+- **Send feedback**: opens a QR code; scan it with your phone to send a bug, an idea, or "it works on my model".
+- **Frame covers** and **Slideshow speed** (5 to 60 seconds) for Full-Screen Album Mode.
+- **Stay in front**: an on/off switch (see [How to use it](#how-to-use-it)).
+- **File access**: on/off. Off means EverSignal reads no files at all: no folder art, lyrics or DR, just the player's own cover.
 - **Today's listening stats**: Reset clears the Session panel on Detail page 1. Tap Reset, then tap again to confirm. They also clear on their own at midnight.
-- **Feedback**: scan the QR code with your phone to send a bug, an idea, or "it works on my model".
 
 Each page scrolls. Top and scrolled views:
 
@@ -172,13 +196,16 @@ If one of these is not true, the badge says which one (Resampled, EQ active, Vol
 - **MQA unfolded ×2 / ×4:** the player unfolds MQA itself.
 - **Lossy (MP3, AAC, …):** the source itself is compressed with loss. Nothing downstream brings it back.
 - **Hi-res stream:** the service says hi-res, but the player doesn't report its output, so no verdict.
+- **Android app:** Apple Music, Amazon Music or another app playing on the Eversolo itself. The player doesn't report the app's own format, so there's no Bit-perfect verdict, only what goes out. Its sound goes through Android, so it needs the Eversolo's **EOS** setting on (Settings › Playback › Eversolo Original sampling-rate audio engine). With EOS off, Android resamples apps: on my A6, everything left USB at 192 kHz and optical at 44.1 kHz. EverSignal shows **EOS on** when the output rate proves it, and an amber **EOS off?** at 192 kHz over USB (unless the track really is 192 kHz). A change to EOS takes effect from the next track. The Eversolo's own player, TIDAL inside the player and TIDAL Connect don't go through Android, so EOS doesn't affect them.
+- **Lossy (E-AC-3):** a Dolby (Atmos) track in an .m4a file. EverSignal reads the real format from the file itself, because the player can describe these as 16-bit stereo.
 
 ## What it never does
 
 - **Never writes.** No settings changed, no files written, moved or deleted, no library or tag edits.
 - **Reads only what the music needs (from 1.0.12):** with your OK, it reads the image files and lyrics files in the playing track's album folder (and one folder up for multi-disc sets), plus the art inside the playing file. Nothing else on your drive, and it never changes or deletes anything. Say no and EverSignal works as before.
 - **Only does what you tap:** play/pause, next, previous, VU meters, and opening the EQ app. Switching EQ on or off is yours to do, in the Eversolo's own screen.
-- **Stores almost nothing:** today's listening totals, Stay in front, the last update check. All in its own app storage.
+- **Measures DR only when you tap Measure:** it reads the music files in the playing album's folder, nothing else, and never changes them.
+- **Stores almost nothing:** today's listening totals, your settings, the last update check, and the DR results you measured. All in its own app storage.
 - **Talks only to your Eversolo.** Two exceptions: album covers load from the streaming service, and once a day it asks GitHub if there's a new version. That check sends nothing about you.
 - **Never installs by itself:** tap the **Update** pill and it saves the new APK to **Download**. That's it.
 - **Feedback goes through your phone:** the QR code opens the form on your phone, filled in with model, firmware, version and screen size. Never your network address, MAC or device ID.
@@ -250,6 +277,8 @@ An APK with a different signer did not come from here.
 
 ## Updating
 
+**Three ways to get a new version:** the **Update** pill under the cover (shows up by itself when a new version is out), the **gear › Check for updates** (right now), or download the APK yourself and install it like the first time (Options A to C above). Your settings stay.
+
 From 1.0.1 on, EverSignal checks for a new version once a day. When one is out, tap **Update … · Download** under the cover. It saves the APK to **Download**. Then open **Files › Storage › Download**, tap the APK, and choose **Update**. Your settings stay. If you're on 1.0.0, install 1.0.1 by hand once, the same way you installed 1.0.0.
 
 From 1.0.10, tapping the Update pill shows what's new in that version first, then **Download**. After you update, EverSignal shows what's new once when you open it.
@@ -257,6 +286,14 @@ From 1.0.10, tapping the Update pill shows what's new in that version first, the
 **Want the update right now?** Tap the **gear**, then **Check for updates**. (On 1.0.9 or earlier: long-press **EverSignal** in Apps, choose **Clear data**, then open the app. It checks again straight away and the **Update** pill shows up. Clearing data only resets EverSignal itself: Simple or Detail, Stay in front, and today's listening stats. Nothing on your player changes.)
 
 ## What's new
+
+**1.0.13** (22 November 2026)
+- **Dynamic Range!** See how much a master was squashed, per track and per album: DR, peak and loudness, measured right on your Eversolo, with the same numbers as foobar's DR Meter. Detail › Track & file › **Measure track** or **Measure album**. The track's DR shows on the Simple screen too. Thanks to Pierre C.
+- **Simple Redesign!** A cleaner Simple screen: a big verdict badge with the quality next to it, a signal path from Source to Port that turns amber exactly where your music gets changed, and bitrate, file size and input in one row.
+- **New Settings!** Everything on one screen in two columns: a **Slideshow speed** for Full-Screen Album Mode (5 to 60 s), a **File access** switch, and Send feedback one tap away. File access switch thanks to Pierre C.
+- **EOS, made visible!** Playing Apple Music or another app on the Eversolo? EverSignal shows **EOS on** when the Eversolo's original-sample-rate engine is passing the app's music through, and an amber **EOS off?** when Android looks to be resampling it to 192 kHz. Tap the badge for how to fix it.
+- **Dolby Atmos files, fixed!** Atmos .m4a tracks no longer show as "Bit-perfect ALAC". EverSignal reads the real format from the file: E-AC-3, 5.1, Dolby Atmos. Thanks to Pierre C.
+- **Smaller fixes:** the quality word in orange; the Eversolo's generic music-note picture counts as "no cover"; "Checking…" when you come back to EverSignal, instead of an old verdict.
 
 **1.0.12** (20 November 2026)
 - **Full-Screen Album Mode!** Tap the cover to see every picture for the album: front, back, inlay, booklet scans in a subfolder, even the art tucked inside your files. It flips through them on its own every 10 seconds, even while paused. Swipe to step through, tap to close. Dots show where you are, and a tiny **1/3** in the corner of the cover tells you there's more to see. Thanks to Václav H.

@@ -18,6 +18,13 @@ public final class ReleaseNotes {
 
     /** {version, date, bullet...}, newest first. Add the new release at the top on every version bump. */
     static final String[][] NOTES = {
+        {"1.0.13", "2026-11-22",
+            "Dynamic Range! See how much a master was squashed, per track and per album: DR, peak and loudness, measured right on your Eversolo, with the same numbers as foobar's DR Meter. Detail, Track & file, then Measure track or Measure album (needs File access). The track's DR shows on the Simple screen too. Thanks to Pierre C.",
+            "Simple Redesign! A cleaner Simple screen: a big verdict badge with the quality next to it, a signal path from Source to Port that turns amber exactly where your music gets changed, and bitrate, file size and input in one row.",
+            "New Settings! Everything on one screen in two columns: a Slideshow speed for Full-Screen Album Mode (5 to 60 s), a File access switch, and Send feedback one tap away. File access switch thanks to Pierre C.",
+            "EOS, made visible! Playing Apple Music or another app on the Eversolo? EverSignal shows EOS on when the Eversolo's original-sample-rate engine is passing the app's music through, and an amber EOS off? when Android looks to be resampling it to 192 kHz. Tap the badge for how to fix it.",
+            "Dolby Atmos files, fixed! Atmos .m4a tracks no longer show as Bit-perfect ALAC. EverSignal reads the real format from the file: E-AC-3, 5.1, Dolby Atmos. Thanks to Pierre C.",
+            "Smaller fixes: the quality word in orange; the Eversolo's generic music-note picture counts as no cover; Checking when you come back to EverSignal, instead of an old verdict."},
         {"1.0.12", "2026-11-20",
             "Full-Screen Album Mode! Tap the cover to see every picture for the album: front, back, inlay, booklet scans in a subfolder, even the art tucked inside your files. It flips through them on its own every 10 seconds. Swipe to step through, tap to close. A tiny 1/3 in the corner of the cover tells you there's more to see. Thanks to Václav H.",
             "Lyrics! If a track has an .lrc file with the same name, a LYRICS button appears in Full-Screen Album Mode and shows the words big, in time with the music. Thanks to Pierre C.",
