@@ -58,6 +58,24 @@ final class DrScan {
         }
     }
 
+    /**
+     * 1.0.12.13: names for the per-track list without what they all share (Michael: "Mostly Piano - 10 - Ashokan
+     * Farewell - " on every line cut off the part that differs) and without the extension. The shared part is cut
+     * back to a separator, so "01 - A" / "02 - B" keep their numbers.
+     */
+    static List<String> shortNames(List<String> names) {
+        List<String> base = new ArrayList<>();
+        for (String n : names) { int dot = n.lastIndexOf('.'); base.add(dot > 0 ? n.substring(0, dot) : n); }
+        if (base.size() < 2) return base;
+        String p = base.get(0);
+        for (String n : base) { int k = 0; while (k < p.length() && k < n.length() && p.charAt(k) == n.charAt(k)) k++; p = p.substring(0, k); }
+        int cut = p.length();
+        while (cut > 0 && " -_.".indexOf(p.charAt(cut - 1)) < 0) cut--;   // back to a separator
+        List<String> out = new ArrayList<>();
+        for (String n : base) { String r = n.substring(cut).trim(); out.add(r.isEmpty() ? n : r); }
+        return out;
+    }
+
     static boolean isAudio(String n) {
         if (n == null) return false;
         String l = n.toLowerCase(Locale.US);
@@ -129,9 +147,12 @@ final class DrScan {
     interface Cancelled { boolean get(); }
 
     /** One track: cached, or decoded and cached. Null if the file can't be read, or on cancel. */
-    static Item measureTrack(File f, Cancelled cancel) {
+    static Item measureTrack(File f, Cancelled cancel) { return measureTrack(f, cancel, false); }
+
+    /** fresh = ignore the saved result and decode again (1.0.12.13, "Measure again"). */
+    static Item measureTrack(File f, Cancelled cancel, boolean fresh) {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
-        Item i = cached(f);
+        Item i = fresh ? null : cached(f);
         if (i != null) return i;
         i = decode(f, cancel);
         if (i != null && !cancel.get()) put(f, i);
@@ -139,7 +160,9 @@ final class DrScan {
     }
 
     /** Every track in the folder not already cached. Reports after each track. */
-    static Album measureAlbum(File dir, Progress p, Cancelled cancel) {
+    static Album measureAlbum(File dir, Progress p, Cancelled cancel) { return measureAlbum(dir, p, cancel, false); }
+
+    static Album measureAlbum(File dir, Progress p, Cancelled cancel, boolean fresh) {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
         Album a = new Album(dir.getPath());
         File[] fs = tracks(dir);
@@ -148,7 +171,7 @@ final class DrScan {
         p.update(a);
         for (File f : fs) {
             if (cancel.get()) break;
-            Item i = measureTrack(f, cancel);
+            Item i = measureTrack(f, cancel, fresh);
             if (cancel.get()) break;
             if (i != null) a.items.add(i); else a.failed++;
             a.done++;

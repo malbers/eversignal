@@ -1288,6 +1288,7 @@ public final class ScreenView extends View {
         final String title;
         final int kind;
         boolean list;                                       // chips drawn one per row (Track flags only)
+        boolean rowsFirst;                                  // 1.0.12.13: rows, then text, then wraps (Dynamic range)
         final List<String[]> rows = new ArrayList<>();
         final List<String> text = new ArrayList<>();
         final List<String[]> wraps = new ArrayList<>();     // {key, value}: value wrapped in full
@@ -1408,6 +1409,40 @@ public final class ScreenView extends View {
         return h;
     }
 
+    private float drawWraps(Canvas c, Section sec, float ix, float ry, float iw) {
+        for (String[] wr : sec.wraps) {
+            if (wr[0] != null) { text(c, wr[0], ix, ry + 11, 11.5f, hanken400, 0x80FFFFFF, iw); ry += 15; }
+            int q = wr[1].indexOf('?');     // the query part (a signed token) is drawn dimmer
+            int at = 0;
+            for (String line : wrapLines(wr[1], iw, 11)) {
+                float lx = ix;
+                tp.setTypeface(mono400); tp.setTextSize(11 * s);
+                int split = q < 0 ? line.length() : Math.max(0, Math.min(line.length(), q - at));
+                String a = line.substring(0, split), b = line.substring(split);
+                if (!a.isEmpty()) { tp.setColor(0xEBFFFFFF); c.drawText(a, X(lx), Y(ry + 11), tp); lx += tp.measureText(a) / s; }
+                if (!b.isEmpty()) { tp.setColor(0x66FFFFFF); c.drawText(b, X(lx), Y(ry + 11), tp); }
+                at += line.length();
+                ry += 14;
+            }
+            ry += 2;
+        }
+        return ry;
+    }
+
+    private float drawText(Canvas c, Section sec, float ix, float ry, float iw) {
+        for (String line : sec.text) {
+            int tab = line.indexOf('	');
+            if (tab < 0) { text(c, line, ix, ry + 11, 11, mono400, 0xEBFFFFFF, iw); ry += 15; continue; }
+            // "title · artist" on the left (cut with … if needed), the format right-aligned and dimmer
+            String right = line.substring(tab + 1);
+            float rw = right.isEmpty() ? 0 : measure(right, 11, mono400);
+            text(c, line.substring(0, tab), ix, ry + 11, 11, mono400, 0xEBFFFFFF, iw - rw - (rw > 0 ? 10 : 0));
+            if (rw > 0) text(c, right, ix + iw - rw, ry + 11, 11, mono400, 0x99FFFFFF, rw + 2);
+            ry += 15;
+        }
+        return ry;
+    }
+
     private static final float BTN_H = 26;
 
     private void drawSection(Canvas c, Section sec, float x, float y, float w, float h) {
@@ -1425,33 +1460,15 @@ public final class ScreenView extends View {
                 bx += bw + 8;
             }
         }
-        for (String[] wr : sec.wraps) {
-            if (wr[0] != null) { text(c, wr[0], ix, ry + 11, 11.5f, hanken400, 0x80FFFFFF, iw); ry += 15; }
-            int q = wr[1].indexOf('?');     // the query part (a signed token) is drawn dimmer
-            int at = 0;
-            for (String line : wrapLines(wr[1], iw, 11)) {
-                float lx = ix;
-                tp.setTypeface(mono400); tp.setTextSize(11 * s);
-                int split = q < 0 ? line.length() : Math.max(0, Math.min(line.length(), q - at));
-                String a = line.substring(0, split), b = line.substring(split);
-                if (!a.isEmpty()) { tp.setColor(0xEBFFFFFF); c.drawText(a, X(lx), Y(ry + 11), tp); lx += tp.measureText(a) / s; }
-                if (!b.isEmpty()) { tp.setColor(0x66FFFFFF); c.drawText(b, X(lx), Y(ry + 11), tp); }
-                at += line.length();
-                ry += 14;
-            }
-            ry += 2;
+        if (sec.rowsFirst) {
+            for (String[] r : sec.rows) ry = row(c, r[0], r[1], ix, ry, iw);
+            ry = drawText(c, sec, ix, ry, iw);
+            ry = drawWraps(c, sec, ix, ry, iw);
+        } else {
+            ry = drawWraps(c, sec, ix, ry, iw);
+            ry = drawText(c, sec, ix, ry, iw);
+            for (String[] r : sec.rows) ry = row(c, r[0], r[1], ix, ry, iw);
         }
-        for (String line : sec.text) {
-            int tab = line.indexOf('	');
-            if (tab < 0) { text(c, line, ix, ry + 11, 11, mono400, 0xEBFFFFFF, iw); ry += 15; continue; }
-            // "title · artist" on the left (cut with … if needed), the format right-aligned and dimmer
-            String right = line.substring(tab + 1);
-            float rw = right.isEmpty() ? 0 : measure(right, 11, mono400);
-            text(c, line.substring(0, tab), ix, ry + 11, 11, mono400, 0xEBFFFFFF, iw - rw - (rw > 0 ? 10 : 0));
-            if (rw > 0) text(c, right, ix + iw - rw, ry + 11, 11, mono400, 0x99FFFFFF, rw + 2);
-            ry += 15;
-        }
-        for (String[] r : sec.rows) ry = row(c, r[0], r[1], ix, ry, iw);
         if (sec.empty()) text(c, "None reported", ix, ry + 11, 11, mono400, 0x4DFFFFFF, iw);
         if (sec.list) {
             // one flag per row: pretty name, raw name dimmer under it, state on the right (Track flags)
@@ -1517,6 +1534,7 @@ public final class ScreenView extends View {
     /** 1.0.12.12: Dynamic Range (Pierre C.). Two buttons (Michael): this track, or the whole album folder. */
     private Section drSection(Track t) {
         Section d = new Section("Dynamic range", FULL);
+        d.rowsFirst = true;   // 1.0.12.13 (Michael): the results first, the explanation last
         if (!drLocal) {
             d.text.add("For files on the Eversolo only (not streams, casts or apps).");
             return d;
@@ -1537,15 +1555,20 @@ public final class ScreenView extends View {
         else av = "not measured (" + a.total + " tracks)";
         d.row("Album", av);
         if (a != null && a.items.size() > 1) {
-            for (DrScan.Item i : a.items)
-                d.text.add(i.name + "\t" + String.format(Locale.US, "DR%d · %.1f / %.1f dB", i.rounded(), i.peakDb, i.rmsDb));
+            List<String> names = new ArrayList<>();
+            for (DrScan.Item i : a.items) names.add(i.name);
+            List<String> shortN = DrScan.shortNames(names);
+            for (int k = 0; k < a.items.size(); k++) {
+                DrScan.Item i = a.items.get(k);
+                d.text.add(shortN.get(k) + "\t" + String.format(Locale.US, "DR%d · %.1f / %.1f dB", i.rounded(), i.peakDb, i.rmsDb));
+            }
         }
         d.wrap(null, "DR = how much the master was compressed: 14+ very dynamic · 8-13 healthy · 7 or below heavily compressed."
             + " Same method as foobar's DR Meter.");
         if (drTrackRunning || (a != null && a.running)) d.button("Cancel", actions::cancelDr);
         else {
             if (drTrack == null) d.button("Measure track", actions::measureDrTrack);
-            if (a == null || a.value() == null) d.button("Measure album", actions::measureDrAlbum);
+            d.button(a != null && a.value() != null ? "Measure again" : "Measure album", actions::measureDrAlbum);
         }
         return d;
     }

@@ -52,4 +52,14 @@ public class DrMeterTest {
         assertNull(new DrMeter(2, 44100).finish());
         assertNotNull(run(44100, 2, 1, i -> 0.1));   // shorter than one block still measures
     }
+
+    /** 1.0.12.13: the per-track list drops what every name shares, back to a separator, and the extension. */
+    @Test public void shortNames() {
+        java.util.List<String> n = DrScan.shortNames(java.util.Arrays.asList(
+            "Mostly Piano - 10 - Ashokan Farewell - 192khz-FLAC.flac", "Mostly Piano - 10 - Ashokan Farewell - 44.1khz-WAV.wav",
+            "Mostly Piano - 10 - Ashokan Farewell - MQA.flac"));
+        assertEquals(java.util.Arrays.asList("192khz-FLAC", "44.1khz-WAV", "MQA"), n);
+        assertEquals(java.util.Arrays.asList("01 - Intro", "02 - Outro"),
+            DrScan.shortNames(java.util.Arrays.asList("01 - Intro.flac", "02 - Outro.flac")));
+    }
 }

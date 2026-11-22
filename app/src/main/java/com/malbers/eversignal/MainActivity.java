@@ -415,6 +415,9 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         if (f == null || !canReadFiles() || f.getParentFile() == null) return;
         drCancel = false;
         final File dir = f.getParentFile();
+        // 1.0.12.13: a complete album = "Measure again": decode everything afresh (Michael wanted to re-run one)
+        final boolean fresh = drAlbum != null && drAlbum.value() != null && dir.getPath().equals(drAlbum.folder);
+        if (fresh) drTrack = null;
         drExec.execute(() -> DrScan.measureAlbum(dir, a -> ui.post(() -> {
             if (drAlbum == null || dir.getPath().equals(drAlbum.folder) || !drAlbum.running) {
                 File now = drFile();
@@ -424,7 +427,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
                 }
             }
             pushDr();
-        }), () -> drCancel));
+        }), () -> drCancel, fresh));
     }
 
     @Override public void cancelDr() { drCancel = true; }
