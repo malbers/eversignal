@@ -40,6 +40,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         view.setFrame(prefs().getBoolean("frame", true));
         view.setSlideSecs(prefs().getInt("slide_s", 10));
         view.setFilesAllowed(hasFilePermission(), filesOn());
+        DrScan.init(getFilesDir());
         setContentView(view);
         session = new Session(this);
         poller = new Poller(api, session, snap -> ui.post(() -> { last = snap; view.setSnapshot(snap); followAlbum(); }));
@@ -350,8 +351,87 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         });
     }
 
+    // ---------------------------------------------------------------- 1.0.12.12: Dynamic Range (Pierre C.)
+
+    private final ExecutorService drExec = Executors.newSingleThreadExecutor();
+    private volatile boolean drCancel;
+    private String drFor;                 // the track path the DR state belongs to
+    private DrScan.Item drTrack;
+    private DrScan.Album drAlbum;
+    private boolean drTrackRunning;
+
+    private File drFile() {
+        String p = last == null ? null : last.playingFrom;
+        return ArtLoader.isLocal(p) && DrScan.isAudio(p) ? new File(p) : null;
+    }
+
+    private void pushDr() { view.setDr(drFile() != null, drTrack, drTrackRunning, drAlbum); }
+
+    /** On every track change: what the cache already knows for this track and its folder (no decoding). */
+    private void followDr() {
+        File f = drFile();
+        String key = f == null ? "" : f.getPath();
+        if (key.equals(drFor)) return;
+        String oldFolder = drAlbum == null ? null : drAlbum.folder;
+        drFor = key;
+        drTrack = null;
+        if (f == null || !canReadFiles()) { if (drAlbum != null && !drAlbum.running) drAlbum = null; pushDr(); return; }
+        boolean sameFolder = f.getParent() != null && f.getParent().equals(oldFolder);
+        if (!(sameFolder && drAlbum != null && drAlbum.running)) drAlbum = null;
+        pushDr();
+        final File ff = f;
+        drExec.execute(() -> {
+            DrScan.Item i = DrScan.cached(ff);
+            DrScan.Album a = DrScan.fromCache(ff.getParentFile());
+            ui.post(() -> {
+                if (!key.equals(drFor)) return;
+                drTrack = i;
+                if (drAlbum == null || !drAlbum.running) drAlbum = a;
+                pushDr();
+            });
+        });
+    }
+
+    @Override public void measureDrTrack() {
+        File f = drFile();
+        if (f == null || !canReadFiles()) return;
+        drCancel = false;
+        drTrackRunning = true;
+        pushDr();
+        final String key = f.getPath();
+        drExec.execute(() -> {
+            DrScan.Item i = DrScan.measureTrack(f, () -> drCancel);
+            DrScan.Album a = DrScan.fromCache(f.getParentFile());
+            ui.post(() -> {
+                drTrackRunning = false;
+                if (key.equals(drFor)) { drTrack = i; if (drAlbum == null || !drAlbum.running) drAlbum = a; }
+                pushDr();
+            });
+        });
+    }
+
+    @Override public void measureDrAlbum() {
+        File f = drFile();
+        if (f == null || !canReadFiles() || f.getParentFile() == null) return;
+        drCancel = false;
+        final File dir = f.getParentFile();
+        drExec.execute(() -> DrScan.measureAlbum(dir, a -> ui.post(() -> {
+            if (drAlbum == null || dir.getPath().equals(drAlbum.folder) || !drAlbum.running) {
+                File now = drFile();
+                if (now != null && dir.getPath().equals(now.getParent())) {
+                    drAlbum = a;
+                    for (DrScan.Item i : a.items) if (i.name.equals(now.getName())) drTrack = i;
+                }
+            }
+            pushDr();
+        }), () -> drCancel));
+    }
+
+    @Override public void cancelDr() { drCancel = true; }
+
     /** The viewer follows the music: a track from another album folder reloads its pictures; every track its lyrics. */
     private void followAlbum() {
+        followDr();
         countArt();
         if (!view.viewerOpen() || last == null) { lyricsFor = null; return; }
         String f = folderOf(last.playingFrom);

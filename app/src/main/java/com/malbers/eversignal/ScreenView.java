@@ -56,6 +56,10 @@ public final class ScreenView extends View {
         void allowFiles();
         /** 1.0.12-5: Settings, File access switch (Pierre C.): Off = EverSignal reads no files, permission or not. */
         void toggleFiles();
+        /** 1.0.12.12: Dynamic Range (Pierre C.), Detail › Track & file: measure the playing track / its whole album folder. */
+        void measureDrTrack();
+        void measureDrAlbum();
+        void cancelDr();
     }
 
     // 1.0.12: full-screen album art viewer. Flips on its own every SLIDE_MS; a swipe steps; a tap or Back closes.
@@ -376,6 +380,7 @@ public final class ScreenView extends View {
         float qx = L0 + drawBadgeV4(c, t, L0, 168, paused) + 18;
         String q = t.lossy && !t.ownPlayer && t.badgeText != null && !t.badgeText.isEmpty() ? t.badgeText + " · " + t.playerLabel : quality(t);
         String q2 = qualityLine(t);
+        if (drTrack != null && !t.externalApp) q2 = q2.isEmpty() ? "DR" + drTrack.rounded() : q2 + " · DR" + drTrack.rounded();
         float qw = L0 + LW - qx;
         // 1.0.12-2: the quality word in ORANGE, every value (Michael 2026-11-20, picked over WARN_RED and UPDATE_FAILED)
         if (q != null) fitText(c, q, qx, q2.isEmpty() ? 199 : 189, 22, hanken600, ORANGE, qw);
@@ -1287,10 +1292,12 @@ public final class ScreenView extends View {
         final List<String> text = new ArrayList<>();
         final List<String[]> wraps = new ArrayList<>();     // {key, value}: value wrapped in full
         final List<String[]> chips = new ArrayList<>();     // {label, raw or null, "true"/"false"}
+        final List<Object[]> buttons = new ArrayList<>();   // 1.0.12.12: {label, Runnable}, one row at the bottom
+        Section button(String label, Runnable r) { buttons.add(new Object[]{label, r}); return this; }
         Section(String title, int kind) { this.title = title; this.kind = kind; }
         Section row(String k, String v) { rows.add(new String[]{k, v}); return this; }
         Section wrap(String k, String v) { if (v != null) wraps.add(new String[]{k, v}); return this; }
-        boolean empty() { return rows.isEmpty() && text.isEmpty() && wraps.isEmpty() && chips.isEmpty(); }
+        boolean empty() { return rows.isEmpty() && text.isEmpty() && wraps.isEmpty() && chips.isEmpty() && buttons.isEmpty(); }
     }
 
     private void drawDots(Canvas c) {
@@ -1397,11 +1404,27 @@ public final class ScreenView extends View {
         for (String[] wr : sec.wraps) h += (wr[0] == null ? 0 : 15) + wrapLines(wr[1], iw, 11).size() * 14 + 2;
         if (!sec.chips.isEmpty()) h += sec.list ? sec.chips.size() * LIST_ROW + 2 : chipRows(sec.chips, iw) * (CHIP_H + CHIP_GAP) + 2;
         if (sec.empty()) h += 15;
+        if (!sec.buttons.isEmpty()) h += BTN_H + 8;
         return h;
     }
 
+    private static final float BTN_H = 26;
+
     private void drawSection(Canvas c, Section sec, float x, float y, float w, float h) {
         float ry = panel(c, sec.title, x, y, w, h), ix = x + 11, iw = w - 22;
+        if (!sec.buttons.isEmpty()) {   // 1.0.12.12: action buttons along the bottom of the panel
+            float bx = ix, byy = y + h - 9 - BTN_H;
+            for (Object[] b : sec.buttons) {
+                String label = (String) b[0];
+                float bw = measure(label, 11.5f, hanken600) + 24;
+                roundRect(c, bx, byy, bw, BTN_H, BTN_H / 2, 0x1FFFFFFF);
+                strokeRect(c, bx + 0.5f, byy + 0.5f, bw - 1, BTN_H - 1, BTN_H / 2, 0x33FFFFFF, 1);
+                text(c, label, bx + 12, byy + 17, 11.5f, hanken600, LIGHT, bw);
+                final Runnable r = (Runnable) b[1];
+                hit(bx, byy, bw, BTN_H, () -> { r.run(); invalidate(); });
+                bx += bw + 8;
+            }
+        }
         for (String[] wr : sec.wraps) {
             if (wr[0] != null) { text(c, wr[0], ix, ry + 11, 11.5f, hanken400, 0x80FFFFFF, iw); ry += 15; }
             int q = wr[1].indexOf('?');     // the query part (a signed token) is drawn dimmer
@@ -1491,6 +1514,42 @@ public final class ScreenView extends View {
     private static Set<String> set(String... keys) { return new java.util.HashSet<>(java.util.Arrays.asList(keys)); }
     private static String nz(String v) { return v == null || "0".equals(v) || "-1".equals(v) ? null : v; }
 
+    /** 1.0.12.12: Dynamic Range (Pierre C.). Two buttons (Michael): this track, or the whole album folder. */
+    private Section drSection(Track t) {
+        Section d = new Section("Dynamic range", FULL);
+        if (!drLocal) {
+            d.text.add("For files on the Eversolo only (not streams, casts or apps).");
+            return d;
+        }
+        if (!filesAllowed || !filesOn) {
+            d.text.add("Needs File access (Settings), to read the music file.");
+            return d;
+        }
+        String tv = drTrackRunning ? "measuring…" : drTrack == null ? "not measured"
+            : String.format(Locale.US, "DR%d   peak %.1f dB · rms %.1f dB", drTrack.rounded(), drTrack.peakDb, drTrack.rmsDb);
+        d.row("This track", tv);
+        DrScan.Album a = drAlbum;
+        String av;
+        if (a == null) av = "not measured";
+        else if (a.running) av = "measuring " + Math.min(a.done + 1, a.total) + " of " + a.total + "…";
+        else if (a.value() != null) av = "DR" + a.value() + "   (" + a.items.size() + " tracks" + (a.failed > 0 ? ", " + a.failed + " unreadable" : "") + ")";
+        else if (a.done > 0) av = a.done + " of " + a.total + " tracks measured";
+        else av = "not measured (" + a.total + " tracks)";
+        d.row("Album", av);
+        if (a != null && a.items.size() > 1) {
+            for (DrScan.Item i : a.items)
+                d.text.add(i.name + "\t" + String.format(Locale.US, "DR%d · %.1f / %.1f dB", i.rounded(), i.peakDb, i.rmsDb));
+        }
+        d.wrap(null, "DR = how much the master was compressed: 14+ very dynamic · 8-13 healthy · 7 or below heavily compressed."
+            + " Same method as foobar's DR Meter.");
+        if (drTrackRunning || (a != null && a.running)) d.button("Cancel", actions::cancelDr);
+        else {
+            if (drTrack == null) d.button("Measure track", actions::measureDrTrack);
+            if (a == null || a.value() == null) d.button("Measure album", actions::measureDrAlbum);
+        }
+        return d;
+    }
+
     // ---- page 2: Track & file
     private List<Section> trackPage(Poller.Snapshot sn) {
         List<Section> out = new ArrayList<>();
@@ -1509,6 +1568,7 @@ public final class ScreenView extends View {
         }
         if (sn.playingFrom == null) from.row("Path", null);
         out.add(from);
+        out.add(drSection(t));
 
         Section credits = new Section("Credits", FLOW);
         credits.row("Title", t.title).row("Artist", t.artist).row("Album artist", v(q, "albumArtist"))
@@ -2054,6 +2114,14 @@ public final class ScreenView extends View {
     private boolean fbOpen;
     private long fbAt;
     private boolean filesAllowed;
+
+    // 1.0.12.12: Dynamic Range for the playing track and its album folder (set by MainActivity)
+    private DrScan.Item drTrack;
+    private DrScan.Album drAlbum;
+    private boolean drTrackRunning, drLocal;
+    public void setDr(boolean local, DrScan.Item track, boolean trackRunning, DrScan.Album album) {
+        drLocal = local; drTrack = track; drTrackRunning = trackRunning; drAlbum = album; invalidate();
+    }
     private int slideSecs = 10;
     static final int[] SLIDE_STEPS = { 5, 10, 20, 30, 60 };
 
