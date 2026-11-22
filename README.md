@@ -100,9 +100,9 @@ Big, readable from across the room:
 |---|---|
 | ![MQA to DAC](docs/screenshots/1b-simple-mqa.jpg) | ![EQ active](docs/screenshots/1c-simple-eq.jpg) |
 
-**Tap the badge** to see what it means on your player right now, and, when you're not bit-perfect, a live checklist of what to change:
+**Tap the badge** to see what it means on your player right now: here, exactly which conditions make it Bit-perfect. When you're not bit-perfect, the same panel shows a live checklist of what to change.
 
-![Tap the badge: what it means and what to change](docs/screenshots/1g-badge-panel.jpg)
+![Tap the badge: Bit-perfect, and the conditions behind it](docs/screenshots/1g-badge-panel.jpg)
 
 ### Detail: stats for nerds
 
