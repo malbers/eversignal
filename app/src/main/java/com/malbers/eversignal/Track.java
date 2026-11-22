@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
  */
 public final class Track {
 
-    public enum Badge { DSD_NATIVE, DSD_TO_PCM, MQA, LOSSY, BIT_PERFECT, VOLUME, HIRES_STREAM, RESAMPLED, EQ_ACTIVE, PAUSED, CHECKING, NONE }
+    public enum Badge { DSD_NATIVE, DSD_TO_PCM, MQA, LOSSY, BIT_PERFECT, VOLUME, HIRES_STREAM, RESAMPLED, EQ_ACTIVE, EXTERNAL_APP, PAUSED, CHECKING, NONE }
 
     /** Volume can't alter the samples: locked (fixed output), at 0 dB, or at its maximum step. */
     public boolean volumeOk = true;
@@ -38,6 +38,15 @@ public final class Track {
     public long positionMs, durationMs;
     // source
     public boolean ownPlayer;
+    /**
+     * 1.0.12.6: playType 8 = an Android app on the Eversolo (Apple Music, Amazon Music), not the player or a cast.
+     * Measured 2026-11-22 on the A6 Gen 1 + SMSL SU-9: that audio goes through Android's mixer unless EOS (Settings >
+     * Playback, "Eversolo Original sampling-rate audio engine") is on. EOS off: 44.1 and 48 kHz both left USB at
+     * 192 kHz and optical at 44.1 kHz (48 downsampled); EOS on: native rate. The player, in-player TIDAL and TIDAL
+     * Connect were untouched either way. An app cannot read the EOS switch (zidoo_prop, system services only), and
+     * the player does not report the app's source rate, so this path never gets a Bit-perfect verdict.
+     */
+    public boolean externalApp;
     public String playerLabel, service, quality;
     public boolean canSeek, hasQueue;
     // signal
@@ -64,6 +73,7 @@ public final class Track {
 
         Double pt = Flat.num(Flat.str(s, "playType"));
         t.ownPlayer = pt == null || pt.intValue() == 5;
+        t.externalApp = pt != null && pt.intValue() == 8;
         Double st = Flat.num(Flat.str(s, "state"));
         t.state = st == null ? 0 : st.intValue();
         Double pos = Flat.num(Flat.str(s, "position"));
@@ -239,6 +249,11 @@ public final class Track {
             // USB DAC set to "Decoder and renderer"); "unfolded ×1" would claim an unfold that never happened
             badge = Badge.MQA; badgeText = x > 1 ? "MQA unfolded ×" + x : "MQA to DAC";
             badgeNote = in + " in → " + (x > 1 ? rateCompact(outRateHz) : "MQA " + rateCompact(outRateHz)) + " out";
+        } else if (externalApp && !lossy) {
+            badge = Badge.EXTERNAL_APP; badgeText = "Android app";
+            String o = outRateHz == null ? null : rateCompact(outRateHz) + " out";
+            badgeNote = (rateHz != null && o != null ? in + " in → " + o : o != null ? o : "output not reported yet")
+                + " · needs EOS on";
         } else if (lossy) {
             badge = Badge.LOSSY; badgeText = "Lossy (" + container + ")";
             badgeNote = ownPlayer ? (bitrate == null ? container : container + " · " + bitrate) : playerLabel + " · no lossless path";

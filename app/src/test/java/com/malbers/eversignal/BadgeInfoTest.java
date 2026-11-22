@@ -127,6 +127,24 @@ public class BadgeInfoTest {
         assertFalse(pcm(96000, 96000, false, true).badgeNote.contains("EQ"));
     }
 
+    /** 1.0.12.6: an Android app (playType 8) never gets Bit-perfect, even when the rates line up (EOS can't be read). */
+    @Test public void externalAppNeverBitPerfect() {
+        Track a = new Track();
+        a.externalApp = true; a.playerLabel = "Apple Music";
+        a.rateHz = 44100.0; a.outRateHz = 44100.0; a.outCodec = "PCM"; a.volumeOk = true; a.volume = "0dB";
+        a.computeBadge(true);
+        assertEquals(Track.Badge.EXTERNAL_APP, a.badge);
+        assertTrue(a.badgeNote.endsWith("needs EOS on"));
+        assertTrue(all(BadgeInfo.lines(a)).contains("Turn EOS on"));
+
+        Track b = new Track();   // the A6 reports no source rate for the app: output only
+        b.externalApp = true; b.outRateHz = 192000.0; b.outCodec = "PCM"; b.volumeOk = true;
+        b.computeBadge(true);
+        assertEquals(Track.Badge.EXTERNAL_APP, b.badge);
+        assertTrue(b.badgeNote.startsWith("192kHz out") || b.badgeNote.contains("out"));
+        assertFalse(b.badgeNote.contains(" in "));
+    }
+
     @Test public void dsdToPcmMakesNoEqClaim() {
         assertFalse(all(BadgeInfo.lines(dsd("PCM", true))).contains("EQ off"));
     }

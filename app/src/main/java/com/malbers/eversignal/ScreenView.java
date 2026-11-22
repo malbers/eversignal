@@ -424,7 +424,7 @@ public final class ScreenView extends View {
             case BIT_PERFECT: case DSD_NATIVE: return GREEN;
             case EQ_ACTIVE: case RESAMPLED: case DSD_TO_PCM: case VOLUME: return AMBER;
             case MQA: return VIOLET;
-            case CHECKING: case HIRES_STREAM: return BLUE;
+            case CHECKING: case HIRES_STREAM: case EXTERNAL_APP: return BLUE;
             case PAUSED: return LIGHT;
             default: return ORANGE;   // Lossy
         }
@@ -468,7 +468,7 @@ public final class ScreenView extends View {
         for (int i = 0; i < 4; i++) {
             boolean pending = (paused || checking) && i >= 2;
             int valCol = i == changed ? AMBER : LIGHT;
-            int subCol = i == changed ? AMBER : (changed >= 0 && i > changed) || checking ? NEUTRAL_SUB : GREEN;
+            int subCol = i == changed ? AMBER : (changed >= 0 && i > changed) || checking || (t.externalApp && i >= 1) ? NEUTRAL_SUB : GREEN;
             int alpha = paused && i >= 2 ? 0x73 : checking && i >= 2 ? 0x66 : 0xFF;
             labelV4(c, n[i][0], nx, y + 12 + 13, 0.1f);
             String val = paused && i >= 2 ? "…" : n[i][1];
@@ -504,7 +504,8 @@ public final class ScreenView extends View {
         else { out = t.outCodec; o1 = t.outRateHz == null ? "" : Track.rateText(t.outRateHz, false); }
         return new String[][]{
             {"SOURCE", src, s1, s2},
-            {"PROCESSING", t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
+            t.externalApp ? new String[]{"PROCESSING", "Android", "needs EOS on", "else resampled"}
+                : new String[]{"PROCESSING", t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
             {"OUTPUT", out, o1, ""},
             {"PORT", t.iface == null ? "…" : t.iface, t.iface != null && t.analogPort() ? "analog out" : "", ""},
         };
@@ -708,7 +709,8 @@ public final class ScreenView extends View {
         else { out = t.outCodec; o1 = t.outRateHz == null ? "" : Track.rateText(t.outRateHz, false); }
         return new String[][]{
             {"SOURCE", src, s1, s2},
-            {"PROCESSING", t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
+            t.externalApp ? new String[]{"PROCESSING", "Android", "needs EOS on", "else resampled"}
+                : new String[]{"PROCESSING", t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
             {"OUTPUT", out, o1, ""},
             {"PORT", t.iface == null ? "…" : t.iface, t.iface == null ? "" : (t.analogPort() ? "analog out" : "digital out"), ""},
         };
@@ -750,7 +752,7 @@ public final class ScreenView extends View {
             case DSD_NATIVE: case DSD_TO_PCM: return AMBER;
             case MQA: return VIOLET;
             case BIT_PERFECT: return GREEN;
-            case HIRES_STREAM: return BLUE;
+            case HIRES_STREAM: case EXTERNAL_APP: return BLUE;
             case PAUSED: case CHECKING: return 0xFFA9A39B;
             default: return ORANGE;
         }
@@ -1127,6 +1129,7 @@ public final class ScreenView extends View {
         ry = row1(c, "MQA", t.mqaOut ? "Yes" : (t.outCodec == null ? null : "No"), ix, ry, iw);
         ry = row1(c, "DSD", t.dsd ? (t.outCodec == null ? null : Track.isDsdCodec(t.outCodec) ? "Native" : "Converted") : null, ix, ry, iw);
         ry = row1(c, "SACD area", t.sacdArea, ix, ry, iw);
+        ry = row1(c, "EOS", t.externalApp ? "Needed (can't be read)" : "Not in this path", ix, ry, iw);
         ry = divider(c, ix, ry, iw);
         ry = row1(c, "EQ", t.eq ? (t.eqApplied() ? "On" : "On, bypassed") : "Off", ix, ry, iw);
         ry = row1(c, "DSP", t.dsp ? "On" : "Off", ix, ry, iw);

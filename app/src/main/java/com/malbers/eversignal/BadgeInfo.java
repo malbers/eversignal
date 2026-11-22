@@ -81,6 +81,17 @@ final class BadgeInfo {
                 if (note != null) l.add(note);
                 volumeLine(l, t);
                 break;
+            case EXTERNAL_APP:
+                l.add("Android app: " + (t.playerLabel == null ? "an app" : t.playerLabel) + " is playing on the Eversolo itself.");
+                if (note != null) l.add(note);
+                l.add("Its audio goes through Android, and the player doesn't report the app's source rate,");
+                l.add("so there's no Bit-perfect verdict here.");
+                l.add("To keep the app's own sample rate:");
+                l.add("•  Turn EOS on (Settings › Playback › Eversolo Original sampling-rate audio engine)");
+                l.add("•  With EOS off, Android picks the rate: 192 kHz out of USB, 44.1 kHz out of optical");
+                l.add("   (measured on an A6), whatever the track is");
+                volumeLine(l, t);
+                break;
             case PAUSED:
                 l.add("Paused: press play for the signal path.");
                 l.add("While a file is paused, the player reports a stand-in output (PCM 192 kHz),");
