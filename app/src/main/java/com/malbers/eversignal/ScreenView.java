@@ -462,7 +462,7 @@ public final class ScreenView extends View {
         roundRect(c, x, y, w, h, 12, 0x4D000000);
         strokeRect(c, x + 0.5f, y + 0.5f, w - 1, h - 1, 12, 0x14F4F1EC, 1);
         String[][] n = nodesV4(t);
-        int changed = t.badge == Track.Badge.EQ_ACTIVE ? 1
+        int changed = t.badge == Track.Badge.EQ_ACTIVE || t.eosOffMaybe() ? 1   // 1.0.12.9: "EOS off?" in amber
             : t.badge == Track.Badge.RESAMPLED || t.badge == Track.Badge.DSD_TO_PCM ? 2 : -1;
         float gut = 24, nodeW = (w - 32 - 3 * gut) / 4f, nx = x + 16;
         for (int i = 0; i < 4; i++) {
@@ -504,7 +504,7 @@ public final class ScreenView extends View {
         else { out = t.outCodec; o1 = t.outRateHz == null ? "" : Track.rateText(t.outRateHz, false); }
         return new String[][]{
             {"SOURCE", src, s1, s2},
-            t.externalApp ? new String[]{"PROCESSING", "Android", t.eosOn() ? "EOS on" : "EOS: check", ""}
+            t.externalApp ? new String[]{"PROCESSING", "Android", t.eosOn() ? "EOS on" : t.eosOffMaybe() ? "EOS off?" : "", ""}
                 : new String[]{"PROCESSING", t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
             {"OUTPUT", out, o1, ""},
             {"PORT", t.iface == null ? "…" : t.iface, t.iface != null && t.analogPort() ? "analog out" : "", ""},
@@ -709,7 +709,7 @@ public final class ScreenView extends View {
         else { out = t.outCodec; o1 = t.outRateHz == null ? "" : Track.rateText(t.outRateHz, false); }
         return new String[][]{
             {"SOURCE", src, s1, s2},
-            t.externalApp ? new String[]{"PROCESSING", "Android", t.eosOn() ? "EOS on" : "EOS: check", ""}
+            t.externalApp ? new String[]{"PROCESSING", "Android", t.eosOn() ? "EOS on" : t.eosOffMaybe() ? "EOS off?" : "", ""}
                 : new String[]{"PROCESSING", t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
             {"OUTPUT", out, o1, ""},
             {"PORT", t.iface == null ? "…" : t.iface, t.iface == null ? "" : (t.analogPort() ? "analog out" : "digital out"), ""},
@@ -1129,7 +1129,7 @@ public final class ScreenView extends View {
         ry = row1(c, "MQA", t.mqaOut ? "Yes" : (t.outCodec == null ? null : "No"), ix, ry, iw);
         ry = row1(c, "DSD", t.dsd ? (t.outCodec == null ? null : Track.isDsdCodec(t.outCodec) ? "Native" : "Converted") : null, ix, ry, iw);
         ry = row1(c, "SACD area", t.sacdArea, ix, ry, iw);
-        ry = row1(c, "EOS", !t.externalApp ? "Not in this path" : t.eosOn() ? "On (from the output rate)" : "Check it's on", ix, ry, iw);
+        ry = row1(c, "EOS", !t.externalApp ? "Not in this path" : t.eosOn() ? "On (from the output rate)" : t.eosOffMaybe() ? "Off? (192 kHz out)" : "Can't be read", ix, ry, iw);
         ry = divider(c, ix, ry, iw);
         ry = row1(c, "EQ", t.eq ? (t.eqApplied() ? "On" : "On, bypassed") : "Off", ix, ry, iw);
         ry = row1(c, "DSP", t.dsp ? "On" : "Off", ix, ry, iw);

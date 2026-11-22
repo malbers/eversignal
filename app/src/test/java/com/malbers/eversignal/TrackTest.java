@@ -271,4 +271,25 @@ public class TrackTest {
         assertEquals(16.0, t.bits, 0.0);
         assertEquals("16bit/44.1kHz", t.formatShort);
     }
+
+    /** 1.0.12.9: an Android app's "source" block is Android's mixer (192 kHz with EOS off): no source format is shown. */
+    @Test public void androidAppHasNoSourceFormat() throws Exception {
+        java.util.Map<String, String> s = new java.util.HashMap<>();
+        s.put("playType", "8"); s.put("state", "3");
+        s.put("everSoloPlayInfo.playTypeSubtitle", "Apple Music");
+        s.put("everSoloPlayInfo.everSoloPlayAudioInfo.songName", "Maxwell's Silver Hammer (2019 Mix)");
+        s.put("everSoloPlayInfo.everSoloPlayAudioInfo.audioDecodec", "PCM");
+        s.put("everSoloPlayInfo.everSoloPlayAudioInfo.audioSampleRate", "192000");
+        s.put("everSoloPlayInfo.everSoloPlayAudioInfo.audioChannels", "2");
+        s.put("everSoloPlayInfo.everSoloPlayOutputInfo.outPutDecodec", "PCM");
+        s.put("everSoloPlayInfo.everSoloPlayOutputInfo.outPutSampleRate", "192000");
+        s.put("volumeData.volumeTag", "USB");
+        Track t = Track.from(s, true);
+        assertTrue(t.externalApp);
+        assertEquals(null, t.rateHz);
+        assertEquals(null, t.container);
+        assertEquals("hires".equals(t.formatClass()), false);
+        assertEquals(Track.Badge.EXTERNAL_APP, t.badge);
+        assertEquals("192kHz out · EOS off?", t.badgeNote);
+    }
 }

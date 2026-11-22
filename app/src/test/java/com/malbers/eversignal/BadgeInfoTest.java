@@ -151,8 +151,11 @@ public class BadgeInfoTest {
         assertTrue(app("OPT", 48000).eosOn());
         assertFalse(app("OPT", 44100).eosOn());
         assertFalse(app("HDMI", 48000).eosOn());      // not measured: check
-        assertEquals("192kHz out · EOS: check", app("USB", 192000).badgeNote);
-        assertTrue(all(BadgeInfo.lines(app("USB", 192000))).contains("check it's on"));
+        assertEquals("192kHz out · EOS off?", app("USB", 192000).badgeNote);   // EOS off, unless a real 192k track
+        assertTrue(all(BadgeInfo.lines(app("USB", 192000))).contains("Quick check"));
+        assertEquals("44.1kHz out", app("OPT", 44100).badgeNote);              // optical: most music is 44.1, stay quiet
+        assertFalse(app("OPT", 44100).eosOffMaybe());
+        assertTrue(all(BadgeInfo.lines(app("OPT", 44100))).contains("Keep EOS on"));
 
         Track own = pcm(48000, 48000, false, true);    // the Eversolo's own player: EOS doesn't apply
         assertFalse(own.eosOn());

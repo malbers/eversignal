@@ -134,6 +134,9 @@ public final class Track {
             String icon = Flat.str(s, info + "icon");
             t.artUrl = firstUrl(art, icon);
             if (t.artUrl == null) t.artPath = icon != null && icon.startsWith("/SystemSettings/") ? icon : null;
+            // 1.0.12.9: for an Android app the "source" block is Android's mixer, not the file: a 44.1/48 kHz track read
+            // 192 kHz "Hi-res" with EOS off (A6 Gen 1, 2026-11-22). Show no source format at all; OUTPUT carries the rate.
+            if (t.externalApp) { t.container = null; t.rateHz = null; t.bits = null; t.channels = null; }
         }
         t.canSeek = Flat.yes(s, info + "isCanSeek") || t.ownPlayer;
         t.hasQueue = t.ownPlayer && Flat.yes(s, "hasPlayQueue");
@@ -263,6 +266,12 @@ public final class Track {
         return false;
     }
 
+    /** 1.0.12.9: an app at exactly 192 kHz out of USB: EOS is off, unless the track itself is 192 kHz. */
+    boolean eosOffMaybe() {
+        return externalApp && outRateHz != null && ifaceRaw != null && "USB".equalsIgnoreCase(ifaceRaw)
+            && Math.abs(outRateHz - 192000) <= 1;
+    }
+
     /**
      * 1.0.11: whether the EQ actually changes the sound. The A6's own EQ screen (read 2026-11-19): "The EQ function
      * takes effect when the input source is the Internal player and the output sampling rate is lower than 192kHz
@@ -305,7 +314,9 @@ public final class Track {
             // (176.4 kHz track: 176400 with EOS on, 192000 with EOS off, measured 2026-11-22).
             badge = Badge.EXTERNAL_APP; badgeText = "Android app";
             badgeNote = (outRateHz == null ? "output not reported yet" : rateCompact(outRateHz) + " out")
-                + (eosOn() ? " · EOS on" : " · EOS: check");
+                // 1.0.12.9 (Michael): EOS off IS the problem the app exists to show. 192 kHz out of USB = EOS off, unless
+                // the track really is 192k: say "EOS off?" and let the panel give the one-glance check.
+                + (eosOn() ? " · EOS on" : eosOffMaybe() ? " · EOS off?" : "");
         } else if (lossy) {
             badge = Badge.LOSSY; badgeText = "Lossy (" + container + ")";
             String what = atmos ? container + " · Dolby Atmos" : container;

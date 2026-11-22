@@ -86,10 +86,18 @@ final class BadgeInfo {
                 if (note != null) l.add(note);
                 l.add("Its audio goes through Android. The player doesn't reliably report the app's source rate");
                 l.add("(with EOS off it reports Android's rate, not the file's), so there's no Bit-perfect verdict here.");
-                l.add(t.eosOn() ? "EOS is on: the output rate isn't one Android forces, so the app's own rate is getting through."
-                    : "EOS: check it's on (Settings › Playback › Eversolo Original sampling-rate audio engine).");
-                if (!t.eosOn()) l.add("EverSignal can't read that switch. With EOS off, Android picks the rate: 192 kHz out of USB,"
-                    + " 44.1 kHz out of optical (measured on an A6), whatever the track is. A real 192 kHz track looks the same.");
+                if (t.eosOn()) l.add("EOS is on: the output rate isn't one Android forces, so the app's own rate is getting through.");
+                if (t.eosOffMaybe()) {
+                    l.add("EOS off? This app's music is going out at 192 kHz. Either the track really is 192 kHz,");
+                    l.add("or EOS is off and Android is resampling everything to 192.");
+                    l.add("Quick check: the app shows the track's format (Apple Music: under the player, e.g. 24-bit / 192 kHz).");
+                    l.add("If it shows anything lower, turn EOS on:");
+                } else {
+                    l.add("Keep EOS on. With it off, Android picks the rate for apps: 192 kHz out of USB,");
+                    l.add("44.1 kHz out of optical (measured on an A6), whatever the track is.");
+                }
+                l.add("•  Settings › Playback › Eversolo Original sampling-rate audio engine");
+                if (!t.eosOn() && !t.eosOffMaybe()) l.add("EverSignal can't read that switch; it shows \"EOS on\" when the output rate proves it.");
                 l.add("A change to EOS takes effect from the next track.");
                 volumeLine(l, t);
                 break;
@@ -105,6 +113,8 @@ final class BadgeInfo {
                 l.add("Paused: press play for the signal path.");
                 l.add("While a file is paused, the player reports a stand-in output (PCM 192 kHz),");
                 l.add("so EverSignal waits for playback instead of guessing.");
+                l.add("Playing from another app (Apple Music, Amazon)? The Eversolo only reports it once its own");
+                l.add("player is stopped, not just paused: play any track, stop it, then go back to the app.");
                 break;
             default:
                 l.add("No verdict yet: the player hasn't reported its output.");
