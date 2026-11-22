@@ -127,22 +127,35 @@ public class BadgeInfoTest {
         assertFalse(pcm(96000, 96000, false, true).badgeNote.contains("EQ"));
     }
 
-    /** 1.0.12.6: an Android app (playType 8) never gets Bit-perfect, even when the rates line up (EOS can't be read). */
-    @Test public void externalAppNeverBitPerfect() {
+    private static Track app(String port, double out) {
         Track a = new Track();
-        a.externalApp = true; a.playerLabel = "Apple Music";
-        a.rateHz = 44100.0; a.outRateHz = 44100.0; a.outCodec = "PCM"; a.volumeOk = true; a.volume = "0dB";
+        a.externalApp = true; a.playerLabel = "Apple Music"; a.ifaceRaw = port;
+        a.rateHz = out; a.outRateHz = out; a.outCodec = "PCM"; a.volumeOk = true; a.volume = "0dB";
         a.computeBadge(true);
-        assertEquals(Track.Badge.EXTERNAL_APP, a.badge);
-        assertTrue(a.badgeNote.endsWith("needs EOS on"));
-        assertTrue(all(BadgeInfo.lines(a)).contains("Turn EOS on"));
+        return a;
+    }
 
-        Track b = new Track();   // the A6 reports no source rate for the app: output only
-        b.externalApp = true; b.outRateHz = 192000.0; b.outCodec = "PCM"; b.volumeOk = true;
-        b.computeBadge(true);
-        assertEquals(Track.Badge.EXTERNAL_APP, b.badge);
-        assertTrue(b.badgeNote.startsWith("192kHz out") || b.badgeNote.contains("out"));
-        assertFalse(b.badgeNote.contains(" in "));
+    /** 1.0.12.6/7: an Android app (playType 8) never gets Bit-perfect; output rate only; EOS inferred where provable. */
+    @Test public void externalAppNeverBitPerfect() {
+        Track a = app("USB", 48000);
+        assertEquals(Track.Badge.EXTERNAL_APP, a.badge);
+        assertEquals("48kHz out · EOS on", a.badgeNote);
+        assertFalse(a.badgeNote.contains(" in "));
+        assertTrue(all(BadgeInfo.lines(a)).contains("next track"));
+    }
+
+    /** Measured 2026-11-22, A6 Gen 1 + SU-9: EOS off pins apps at 192 kHz on USB and 44.1 kHz on optical. */
+    @Test public void eosInferredFromThePinnedRate() {
+        assertTrue(app("USB", 176400).eosOn());
+        assertFalse(app("USB", 192000).eosOn());      // EOS off, or a real 192k track: can't tell
+        assertTrue(app("OPT", 48000).eosOn());
+        assertFalse(app("OPT", 44100).eosOn());
+        assertFalse(app("HDMI", 48000).eosOn());      // not measured: check
+        assertEquals("192kHz out · EOS: check", app("USB", 192000).badgeNote);
+        assertTrue(all(BadgeInfo.lines(app("USB", 192000))).contains("check it's on"));
+
+        Track own = pcm(48000, 48000, false, true);    // the Eversolo's own player: EOS doesn't apply
+        assertFalse(own.eosOn());
     }
 
     @Test public void dsdToPcmMakesNoEqClaim() {

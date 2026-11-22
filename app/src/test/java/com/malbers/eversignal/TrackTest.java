@@ -37,6 +37,7 @@ public class TrackTest {
         Map<String, String> q = new java.util.HashMap<>();
         q.put("title", "01 ALAC 24-96"); q.put("sampleRateNumber", "96000"); q.put("bits", "24");
         assertTrue(t.applyQueueFile(q, true));
+        t.applyM4aCodec("alac", true);   // 1.0.12.7: the file header says ALAC
         assertEquals(96000.0, t.rateHz, 0.1);
         assertEquals(Track.Badge.BIT_PERFECT, t.badge);   // PCM 96 kHz out, EQ off, 0 dB
     }
@@ -47,6 +48,7 @@ public class TrackTest {
         Map<String, String> q = new java.util.HashMap<>();
         q.put("id", "32592"); q.put("title", "EverSignal test ALAC 24-96"); q.put("sampleRateNumber", "96000"); q.put("bits", "24");
         assertTrue(t.applyQueueFile(q, true));
+        t.applyM4aCodec("alac", true);
         assertEquals(96000.0, t.rateHz, 0.1);
         assertEquals(Track.Badge.BIT_PERFECT, t.badge);
     }
@@ -57,6 +59,7 @@ public class TrackTest {
         Map<String, String> q = new java.util.HashMap<>();
         q.put("id", "735278916"); q.put("title", "01 ALAC 24-96"); q.put("sampleRateNumber", "96000"); q.put("bits", "24");
         assertTrue(t.applyQueueFile(q, true));
+        t.applyM4aCodec("alac", true);
         assertEquals(96000.0, t.rateHz, 0.1);
         assertEquals(Track.Badge.BIT_PERFECT, t.badge);
     }

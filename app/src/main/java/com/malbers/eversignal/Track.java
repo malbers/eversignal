@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
  */
 public final class Track {
 
-    public enum Badge { DSD_NATIVE, DSD_TO_PCM, MQA, LOSSY, BIT_PERFECT, VOLUME, HIRES_STREAM, RESAMPLED, EQ_ACTIVE, EXTERNAL_APP, PAUSED, CHECKING, NONE }
+    public enum Badge { DSD_NATIVE, DSD_TO_PCM, MQA, LOSSY, BIT_PERFECT, VOLUME, HIRES_STREAM, RESAMPLED, EQ_ACTIVE, EXTERNAL_APP, UNVERIFIED, PAUSED, CHECKING, NONE }
 
     /** Volume can't alter the samples: locked (fixed output), at 0 dB, or at its maximum step. */
     public boolean volumeOk = true;
@@ -53,6 +53,10 @@ public final class Track {
     public String container, codec, bitrate;
     public Double rateHz, bits, channels;
     public boolean dsd, lossy, m4a;
+    /** 1.0.12.7: an .m4a whose codec hasn't been read from the file yet (see M4aCodec): no Bit-perfect until it is. */
+    public boolean codecUnknown;
+    /** 1.0.12.7: the .m4a holds Dolby (E-AC-3 / AC-3 / AC-4): decoded on the player, and its bits/channels are unreliable. */
+    public boolean dolby;
     public String outCodec;
     public Double outRateHz;
     public String iface, ifaceRaw;
@@ -145,6 +149,7 @@ public final class Track {
             t.container = alac ? "ALAC" : "AAC";
             t.lossy = !alac;
             t.m4a = true;
+            t.codecUnknown = true;
         }
         if (t.dsd && t.bits == null) t.bits = 1.0;
         // 1.0.11: lossy no longer blanks the depth. MP3 reports 0, which Flat.pos already drops ("0 bit" never shows);
@@ -213,6 +218,44 @@ public final class Track {
     }
 
     /**
+     * 1.0.12.7: the codec read from the .m4a file itself (M4aCodec), replacing the 1.0.8 guess. null = unknown
+     * (file access off, a stream, or unreadable). Returns true when it changed anything (badge recomputed).
+     */
+    boolean applyM4aCodec(String fourcc, boolean settled) {
+        if (!m4a || fourcc == null) return false;
+        String c; boolean ly, dl = false;
+        switch (fourcc) {
+            case "alac": c = "ALAC"; ly = false; break;
+            case "flac": case "fla1": c = "FLAC"; ly = false; break;
+            case "mp4a": c = "AAC"; ly = true; break;
+            case "opus": c = "Opus"; ly = true; break;
+            case "ec-3": c = "E-AC-3"; ly = true; dl = true; break;
+            case "ac-3": c = "AC-3"; ly = true; dl = true; break;
+            case "ac-4": c = "AC-4"; ly = true; dl = true; break;
+            default: return false;
+        }
+        boolean changed = codecUnknown || !c.equals(container) || ly != lossy || dl != dolby;
+        container = c; lossy = ly; dolby = dl; codecUnknown = false;
+        // Dolby: the bit depth is the decoder's (32 or 16) and the channel count depends on how it was started
+        if (dolby) { bits = null; channels = null; }
+        if (changed) { formatShort(); computeBadge(settled); }
+        return changed;
+    }
+
+    /**
+     * 1.0.12.7: EOS can't be read by an app (zidoo_prop), but with EOS off Android pins an app's output rate:
+     * 192 kHz on USB, 44.1 kHz on optical (A6 Gen 1 + SU-9, 2026-11-22). Any other rate on those ports proves
+     * EOS is on. The pinned rate itself, or another port, can't be told apart: "check".
+     */
+    boolean eosOn() {
+        if (!externalApp || outRateHz == null || ifaceRaw == null) return false;
+        String p = ifaceRaw.toUpperCase(Locale.US);
+        if (p.equals("USB")) return Math.abs(outRateHz - 192000) > 1;
+        if (p.equals("OPT") || p.equals("SPDIF")) return Math.abs(outRateHz - 44100) > 1;
+        return false;
+    }
+
+    /**
      * 1.0.11: whether the EQ actually changes the sound. The A6's own EQ screen (read 2026-11-19): "The EQ function
      * takes effect when the input source is the Internal player and the output sampling rate is lower than 192kHz
      * stereo PCM. All stereo, all multi-channel, and DSD audio with a sampling rate higher than 192kHz will be output
@@ -250,10 +293,11 @@ public final class Track {
             badge = Badge.MQA; badgeText = x > 1 ? "MQA unfolded ×" + x : "MQA to DAC";
             badgeNote = in + " in → " + (x > 1 ? rateCompact(outRateHz) : "MQA " + rateCompact(outRateHz)) + " out";
         } else if (externalApp && !lossy) {
+            // 1.0.12.7: output only. The "source" rate the player gives for an app is Android's, not the file's
+            // (176.4 kHz track: 176400 with EOS on, 192000 with EOS off, measured 2026-11-22).
             badge = Badge.EXTERNAL_APP; badgeText = "Android app";
-            String o = outRateHz == null ? null : rateCompact(outRateHz) + " out";
-            badgeNote = (rateHz != null && o != null ? in + " in → " + o : o != null ? o : "output not reported yet")
-                + " · needs EOS on";
+            badgeNote = (outRateHz == null ? "output not reported yet" : rateCompact(outRateHz) + " out")
+                + (eosOn() ? " · EOS on" : " · EOS: check");
         } else if (lossy) {
             badge = Badge.LOSSY; badgeText = "Lossy (" + container + ")";
             badgeNote = ownPlayer ? (bitrate == null ? container : container + " · " + bitrate) : playerLabel + " · no lossless path";
@@ -262,6 +306,9 @@ public final class Track {
             if (same && !eq && !dsp && !volumeOk) {
                 badge = Badge.VOLUME; badgeText = "Volume " + (volume == null ? "lowered" : volume.replace("-", "−"));
                 badgeNote = "digital volume changes the samples";
+            } else if (same && !eq && !dsp && codecUnknown) {
+                badge = Badge.UNVERIFIED; badgeText = "No verdict";
+                badgeNote = "M4A codec not checked";
             } else if (same && !eq && !dsp) {
                 badge = Badge.BIT_PERFECT; badgeText = "Bit-perfect";
                 badgeNote = in + " in = " + rateCompact(outRateHz) + " out" + (eqSkipped() ? " · EQ skipped" : "");
