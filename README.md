@@ -100,6 +100,10 @@ Big, readable from across the room:
 |---|---|
 | ![MQA to DAC](docs/screenshots/1b-simple-mqa.jpg) | ![EQ active](docs/screenshots/1c-simple-eq.jpg) |
 
+**Tap the badge** to see what it means on your player right now, and, when you're not bit-perfect, a live checklist of what to change:
+
+![Tap the badge: what it means and what to change](docs/screenshots/1g-badge-panel.jpg)
+
 ### Detail: stats for nerds
 
 Tap **Detail**, then swipe left or right through five pages:
@@ -138,6 +142,10 @@ Tap the cover to see every picture for the album, booklet scans included, full s
 
 > "I think booklets are an essential part of the experience… Until now, this feature hadn't been available on the DMP A6. And now, thanks to you, it's available, and I'm enjoying it immensely. … So far, I'm not aware of any competitor that offers something similar."<br>
 > **Václav H.**
+
+**Lyrics:** if a track has an `.lrc` file with the same name next to it, a **LYRICS** button appears in Full-Screen Album Mode and shows the words big, in time with the music. Thanks to Pierre C.
+
+![Lyrics in Full-Screen Album Mode](docs/screenshots/4-fullscreen-lyrics.jpg)
 
 ### Settings & about: the gear
 
