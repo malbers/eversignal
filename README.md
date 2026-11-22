@@ -6,7 +6,15 @@
 
 Are you a streaming nerd? Do you check the sample rate before the song title? Ever wondered whether that 24-bit TIDAL track really reaches your DAC untouched, or what your Eversolo is quietly doing to it on the way? **This player is for you.**
 
-EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole signal path at a glance: what the source is, what the player does to it, what goes out and through which port. Then it tells you, in plain words, whether it's **bit-perfect**. One tap away there are five pages with every stat the player reports. Your music keeps playing exactly as before; EverSignal just shows you what's going on.
+EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole signal path at a glance and tells you, in plain words, whether it's **bit-perfect**. Then it goes further: it measures how much your masters were compressed, and shows your album art the way the booklet meant it.
+
+- **Bit-perfect verdict and signal path:** Source → Processing → Output → Port, with the step that changes your music shown in amber.
+- **Dynamic Range:** DR, peak and loudness per track and per album, measured on the Eversolo itself, with the same numbers as foobar's DR Meter.
+- **Full-Screen Album Mode:** every picture for the album, booklet scans included, plus lyrics in time with the music.
+- **Apps checked too:** Apple Music and other apps on the Eversolo, including whether the EOS setting is letting their sample rate through.
+- **Five pages of stats** for everything else the player reports.
+
+Your music keeps playing exactly as before; EverSignal just shows you what's going on.
 
 **It only reads. It never writes.** No settings changed, no files touched, nothing in your library edited. The only things it ever asks the player to do are the buttons you tap: play/pause, next, previous, and the VU screen.
 
@@ -201,6 +209,8 @@ If one of these is not true, the badge says which one (Resampled, EQ active, Vol
 - **Hi-res stream:** the service says hi-res, but the player doesn't report its output, so no verdict.
 - **Android app:** Apple Music, Amazon Music or another app playing on the Eversolo itself. The player doesn't report the app's own format, so there's no Bit-perfect verdict, only what goes out. Its sound goes through Android, so it needs the Eversolo's **EOS** setting on (Settings › Playback › Eversolo Original sampling-rate audio engine). With EOS off, Android resamples apps: on my A6, everything left USB at 192 kHz and optical at 44.1 kHz. EverSignal shows **EOS on** when the output rate proves it, and an amber **EOS off?** at 192 kHz over USB (unless the track really is 192 kHz). A change to EOS takes effect from the next track. The Eversolo's own player, TIDAL inside the player and TIDAL Connect don't go through Android, so EOS doesn't affect them.
 - **Lossy (E-AC-3):** a Dolby (Atmos) track in an .m4a file. EverSignal reads the real format from the file itself, because the player can describe these as 16-bit stereo.
+
+![Apple Music playing on the Eversolo with EOS off: the Processing step reads Android, EOS off? in amber, and the output is 192 kHz](docs/screenshots/1e-simple-eos-off.jpg)
 
 ## What it never does
 
