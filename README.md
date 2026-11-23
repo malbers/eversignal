@@ -61,6 +61,14 @@ Martin M. was playing a DSD file (DSF, 2.8 MHz) to his amp over HDMI and assumed
 
 That's what it's for: the player knows what it's doing to your music, it just doesn't show you.
 
+### From owners
+
+> "Thanks to your program, I'm enjoying my music more than ever before."<br>
+> **Václav H.**
+
+> "I'm a technician. That's why I'm also interested in all the technical details of the music being played, and if I have access to them, I enjoy the music even more, because those technical details tell me something extra about it."<br>
+> **Václav H.**
+
 ### From the Eversolo Facebook groups
 
 > "I just installed it. Very impressive.😊 It's my new favourite toy.😁"<br>
@@ -131,6 +139,9 @@ Measured once, remembered: the next time you play that album, its DR is just the
 | One album, from DR6 to DR13: every track stops at -1.0 dB | The track's DR on the Simple screen |
 |---|---|
 | ![Dynamic range for a whole album](docs/screenshots/2-detail-dr.jpg) | ![DR8 on the Simple screen](docs/screenshots/1d-simple-dr8.jpg) |
+
+> "I think that this data is available only in Foobar and now (to my great joy) in EverSignal. The large audiophile community will have something to talk about again and the competition will probably be completely taken aback, because I haven't seen anything like it anywhere yet …"<br>
+> **Václav H.**
 
 ### Full-Screen Album Mode
 
