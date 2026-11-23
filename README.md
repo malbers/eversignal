@@ -192,6 +192,10 @@ EverSignal runs on the Eversolo itself, not on your phone. I built and test it o
 
 It does not run on non-Eversolo Android boxes, and there is no iPhone or Android phone version. Tried it on a model that isn't listed? [Let me know](#feedback), works or not.
 
+### My A6 doesn't support Atmos, so why does EverSignal show it?
+
+Because the file is Atmos, even if your player can't output it. Atmos music files use Dolby's lossy E-AC-3 format, and the player can report them as ordinary 16-bit stereo, which is why earlier versions wrongly called them Bit-perfect ALAC. Knowing a track is lossy Atmos tells you you're not hearing the lossless version, which matters if you have the same album both ways.
+
 ## What "Bit-perfect" means here
 
 Your music file is a long list of numbers. Bit-perfect means the exact same numbers that are in the file are the ones that leave the Eversolo: nothing added, nothing changed. Why make that the goal? You hear the recording as it was mastered, and your DAC gets to do the job you bought it for. It makes sure nothing in between is quietly changing the music. On its own it won't make a track sound better, and if you like EQ or upsampling, use them. Just know they're on.
@@ -216,7 +220,7 @@ If one of these is not true, the badge says which one (Resampled, EQ active, Vol
 - **Lossy (MP3, AAC, …):** the source itself is compressed with loss. Nothing downstream brings it back.
 - **Hi-res stream:** the service says hi-res, but the player doesn't report its output, so no verdict.
 - **Android app:** Apple Music, Amazon Music or another app playing on the Eversolo itself. The player doesn't report the app's own format, so there's no Bit-perfect verdict, only what goes out. Its sound goes through Android, so it needs the Eversolo's **EOS** setting on (Settings › Playback › Eversolo Original sampling-rate audio engine). With EOS off, Android resamples apps: on my A6, everything left USB at 192 kHz and optical at 44.1 kHz. EverSignal shows **EOS on** when the output rate proves it, and an amber **EOS off?** at 192 kHz over USB (unless the track really is 192 kHz). A change to EOS takes effect from the next track. The Eversolo's own player, TIDAL inside the player and TIDAL Connect don't go through Android, so EOS doesn't affect them.
-- **Lossy (E-AC-3):** a Dolby (Atmos) track in an .m4a file. EverSignal reads the real format from the file itself, because the player can describe these as 16-bit stereo.
+- **Lossy (E-AC-3):** a Dolby (Atmos) track in an .m4a file. EverSignal reads the real format from the file itself, because the player can describe these as 16-bit stereo. The badge describes the file, not what comes out of your player: on the DMP-A6, Atmos doesn't come out as Atmos. The player decodes the file and sends it out as regular PCM.
 
 ![Apple Music playing on the Eversolo with EOS off: the Processing step reads Android, EOS off? in amber, and the output is 192 kHz](docs/screenshots/1e-simple-eos-off.jpg)
 
