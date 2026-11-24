@@ -14,6 +14,10 @@ EverSignal is a now-playing screen for the Eversolo DMP-A6 that shows the whole 
 - **Apps checked too:** Apple Music and other apps on the Eversolo, including whether the EOS setting is letting their sample rate through.
 - **Five pages of stats** for everything else the player reports.
 
+**▶ Watch it in action (1 minute):** *Magical Mystery Tour* played from the library. EverSignal checks the signal path and calls it Bit-perfect at CD quality, then a tap on the cover opens Full-Screen Album Mode with all 7 pictures for the album, disc included.
+
+https://github.com/user-attachments/assets/c1869368-19e8-4e4a-8ed3-7eeb2c798256
+
 Your music keeps playing exactly as before; EverSignal just shows you what's going on.
 
 **It only reads. It never writes.** No settings changed, no files touched, nothing in your library edited. The only things it ever asks the player to do are the buttons you tap: play/pause, next, previous, and the VU screen.
