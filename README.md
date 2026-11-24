@@ -128,6 +128,10 @@ Tap **Detail**, then swipe left or right through five pages:
 | 4. Device | Model, firmware, memory, storage, network |
 | 5. Inputs, outputs & volume | Every input and output, output settings, volume |
 
+**▶ Watch it (2 minutes):** all five Detail pages while *Magical Mystery Tour* plays, including measuring the track's dynamic range (DR11, which then shows on the Simple screen too), and the Settings screen at the end. MAC addresses are blurred.
+
+https://github.com/user-attachments/assets/fe0807f4-1d64-4df3-bfb6-6f8e861ea74f
+
 Missing info shows as N/A, so you can see what each source reports.
 
 ### Dynamic range: how squashed is your master?
