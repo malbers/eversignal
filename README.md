@@ -154,6 +154,8 @@ Tap the cover to see every picture for the album, booklet scans included, full s
 > "I think booklets are an essential part of the experience… Until now, this feature hadn't been available on the DMP A6. And now, thanks to you, it's available, and I'm enjoying it immensely. … So far, I'm not aware of any competitor that offers something similar."<br>
 > **Václav H.**
 
+**No booklet scans?** [AddMyCoverArt](https://github.com/malbers/addmycoverart) can find them. Open an album, tap **Find more art**, and it fetches the back cover, booklet pages, disc and tray from the Cover Art Archive into the album's `Scan` folder. Open Full-Screen Album Mode and they're there.
+
 **Lyrics:** if a track has an `.lrc` file with the same name next to it, a **LYRICS** button appears in Full-Screen Album Mode and shows the words big, in time with the music. Thanks to Pierre C.
 
 ![Lyrics in Full-Screen Album Mode](docs/screenshots/4-fullscreen-lyrics.jpg)
@@ -485,7 +487,7 @@ Contributions are welcome. Anything you submit to this repository is accepted un
 
 Two more free apps for the DMP-A6:
 
-- **[AddMyCoverArt](https://github.com/malbers/addmycoverart)** fills in missing album art on your ripped CDs, right on the Eversolo, and checks your rips for missing or cut-short tracks.
+- **[AddMyCoverArt](https://github.com/malbers/addmycoverart)** fills in missing album art on your ripped CDs, finds booklet pages, back covers and disc art for any album, and checks your rips for missing or cut-short tracks, right on the Eversolo.
 - **[FixMyRips](https://github.com/malbers/fixmyrips)** fixes the tags the Eversolo CD Ripper leaves broken, and tells you from your phone whether a CD is already ripped.
 
 And the videos that go with all three: **[youtube.com/@malbers](https://www.youtube.com/@malbers)**
