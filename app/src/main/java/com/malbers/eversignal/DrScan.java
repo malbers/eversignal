@@ -48,6 +48,8 @@ final class DrScan {
         int total, done, failed;
         boolean running;
         final List<Item> items = new ArrayList<>();
+        final List<String> failedNames = new ArrayList<>();   // 1.0.14 (Pierre C.): name the files that can't be read
+        String failWhy;                                         // fix14: why the first unreadable file failed (plain words)
         Album(String folder) { this.folder = folder; }
         /** Album DR = the rounded average of the tracks' rounded DRs, as foobar's album "Official DR value". Null until all are in. */
         Integer value() {
@@ -74,6 +76,44 @@ final class DrScan {
         List<String> out = new ArrayList<>();
         for (String n : base) { String r = n.substring(cut).trim(); out.add(r.isEmpty() ? n : r); }
         return out;
+    }
+
+    /** 1.0.14 (Pierre C.): the album as a text log, laid out like foobar's DR Meter log. Tracks in file order. */
+    static String log(Album a, String app) {
+        StringBuilder b = new StringBuilder();
+        String line = "--------------------------------------------------------------------------------\n";
+        b.append(app).append(" DR log (same method as foobar's DR Meter)\n");
+        b.append("Folder: ").append(a.folder).append('\n');
+        b.append("Saved: ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(new java.util.Date())).append('\n');
+        b.append(line).append(String.format(Locale.US, "%-8s %10s %11s    %s%n", "DR", "Peak", "RMS", "Track")).append(line);
+        List<String[]> rows = new ArrayList<>();
+        for (Item i : a.items) rows.add(new String[]{i.name, String.format(Locale.US, "DR%-6d %7.2f dB %8.2f dB    ", i.rounded(), i.peakDb, i.rmsDb)});
+        for (String n : a.failedNames) rows.add(new String[]{n, String.format(Locale.US, "%-31s", "can't read")});
+        rows.sort((x, y) -> x[0].compareToIgnoreCase(y[0]));
+        for (String[] r : rows) b.append(r[1]).append(r[0]).append('\n');
+        b.append(line);
+        b.append("Number of tracks:  ").append(a.items.size() + a.failedNames.size()).append('\n');
+        Integer v = a.value();
+        b.append("Official DR value: ").append(v == null ? "incomplete (measure the whole album)" : "DR" + v).append('\n');
+        return b.toString();
+    }
+
+    /** 1.0.14 (Pierre C.): DSD is local music too, but Android has no decoder for it, so DR says so instead of nothing. */
+    static boolean isDsd(String n) {
+        if (n == null) return false;
+        String l = n.toLowerCase(Locale.US);
+        return l.endsWith(".dsf") || l.endsWith(".dff");
+    }
+
+    /** 1.0.14: why a file couldn't be measured, in plain words. Reads only the file header. */
+    static String whyUnreadable(File f) {
+        if (f != null && M4aCodec.isM4a(f.getName())) {
+            String c = M4aCodec.sniff(f);
+            if ("ec-3".equals(c)) return "Dolby (E-AC-3) can't be decoded on this player";
+            if ("ac-3".equals(c)) return "Dolby (AC-3) can't be decoded on this player";
+            if ("ac-4".equals(c)) return "Dolby (AC-4) can't be decoded on this player";
+        }
+        return "Android couldn't decode this file";
     }
 
     static boolean isAudio(String n) {
@@ -150,7 +190,7 @@ final class DrScan {
         for (File f : fs) {
             Item i = cached(f);
             if (i != null) { a.items.add(i); a.done++; }
-            else if (knownUnreadable(f)) { a.failed++; a.done++; }
+            else if (knownUnreadable(f)) { a.failed++; a.done++; a.failedNames.add(f.getName()); if (a.failWhy == null) a.failWhy = whyUnreadable(f); }
         }
         return a;
     }
@@ -186,7 +226,7 @@ final class DrScan {
             if (cancel.get()) break;
             Item i = measureTrack(f, cancel, fresh);
             if (cancel.get()) break;
-            if (i != null) a.items.add(i); else a.failed++;
+            if (i != null) a.items.add(i); else { a.failed++; a.failedNames.add(f.getName()); if (a.failWhy == null) a.failWhy = whyUnreadable(f); }
             a.done++;
             p.update(a);
         }

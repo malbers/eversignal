@@ -35,9 +35,14 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         api = new Api(host());
         view = new ScreenView(this, this);
         view.setDownloadDiag(prefs().getString("dl_diag", null));
+        // fix9 (Michael 2026-11-23): a fresh open always starts on Simple. Landing in Detail was jarring, and opening
+        // Settings saves "detail" too, so a peek at the gear decided the next launch. Switching back to the app (no
+        // new onCreate) or Android recreating it (b != null) keeps the screen you were on.
+        if (b == null) prefs().edit().putBoolean("detail", false).apply();
         view.setDetail(prefs().getBoolean("detail", false));
         view.setStayOn(stayOn());
         view.setFrame(prefs().getBoolean("frame", true));
+        view.setBeta(prefs().getBoolean("beta", false));
         view.setSlideSecs(prefs().getInt("slide_s", 10));
         view.setFilesAllowed(hasFilePermission(), filesOn());
         DrScan.init(getFilesDir());
@@ -94,7 +99,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         if (now - prefs().getLong("upd_checked", 0) < DAY_MS) return;
         prefs().edit().putLong("upd_checked", now).apply();
         Thread t = new Thread(() -> {
-            UpdateCheck.Release r = UpdateCheck.latest(new UpdateCheck.UrlHttp(USER_AGENT));
+            UpdateCheck.Release r = UpdateCheck.newest(new UpdateCheck.UrlHttp(USER_AGENT), prefs().getBoolean("beta", false));
             if (r == null) return;
             prefs().edit().putString("upd_version", r.version).putString("upd_url", r.url)
                 .putString("upd_notes", r.notes).apply();
@@ -116,9 +121,9 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         if (v == null) { view.setUpdate(null, 0); return; }
         String d = downloadDetail == null ? "" : " · " + downloadDetail;
         if ("running".equals(downloadState)) view.setUpdate("Downloading " + v + d, ScreenView.UPDATE_BUSY);
-        else if ("done".equals(downloadState)) view.setUpdate("Saved · install it from Files › Storage › Download", ScreenView.UPDATE_OFFER);
+        else if ("done".equals(downloadState)) view.setUpdate("Install " + v, ScreenView.UPDATE_OFFER);   // fix13
         else if ("failed".equals(downloadState)) view.setUpdate("Download failed" + d + " · tap to try again", ScreenView.UPDATE_FAILED);
-        else view.setUpdate("Update " + v + " available · Download", ScreenView.UPDATE_OFFER);
+        else view.setUpdate("Update to " + v, ScreenView.UPDATE_OFFER);   // fix5: the long form was cut to "Down…" (Michael)
         // 1.0.11: the same state on Settings' Check for updates button. 1.0.10 started downloads there but only
         // the Simple pill ever said what happened, and the Eversolo has no notification shade.
         if ("running".equals(downloadState)) view.checkStatus(downloadDetail == null ? "Downloading…" : "Downloading " + downloadDetail, 3000);
@@ -143,13 +148,71 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         download();
     }
 
+    /** fix13: hand the downloaded APK to Android's installer. False = not possible here (use the Files path). */
+    private boolean installDownloaded(String v) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                // one time: Android's own "Install unknown apps" switch for EverSignal
+                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                view.toast("Allow EverSignal to install apps, then come back and tap Install " + v + " again");
+                return true;
+            }
+            DownloadManager dm = getSystemService(DownloadManager.class);
+            Uri apk = downloadId >= 0 ? dm.getUriForDownloadedFile(downloadId) : null;
+            if (apk == null) return false;
+            startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(apk, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK));
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** fix11: the launcher app called "Files" (Eversolo's file manager), found by its name, not a guessed package. */
+    private boolean openFilesApp() {
+        // fix12: on the A6, "Files" is a screen INSIDE the Eversolo player, not an app with its own icon (adb, 2026-11-23:
+        // com.zidoo.streamer/.file.browse.BrowseActivity, exported via action "zidoo.action.file.browse").
+        try {
+            Intent i = new Intent("zidoo.action.file.browse").addCategory(Intent.CATEGORY_DEFAULT)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (i.resolveActivity(getPackageManager()) != null) { startActivity(i); return true; }
+        } catch (Exception ignored) { }
+        // other players / firmware: a launcher app named "Files"
+        try {
+            android.content.pm.PackageManager pm = getPackageManager();
+            Intent main = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+            android.content.pm.ResolveInfo best = null;
+            for (android.content.pm.ResolveInfo ri : pm.queryIntentActivities(main, 0)) {
+                String label = String.valueOf(ri.loadLabel(pm)).trim().toLowerCase(java.util.Locale.US);
+                if (label.equals("files")) { best = ri; break; }
+                if (best == null && (label.equals("file manager") || label.equals("file explorer"))) best = ri;
+            }
+            if (best == null) return false;
+            Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                .setClassName(best.activityInfo.packageName, best.activityInfo.name)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private void download() {
         String v = newerVersion();
         String url = prefs().getString("upd_url", null);
         if (v == null || url == null) return;
         if ("running".equals(downloadState)) return;
         KeepOnTopService.suspended = true;   // the user is about to open Files; don't pull the app back over it
-        if ("done".equals(downloadState)) { view.toast("Open Files › Storage › Download and tap EverSignal-" + v + ".apk"); return; }
+        if ("done".equals(downloadState)) {
+            // fix13 (Michael: owners aren't Android people): install straight from the pill. Android asks once,
+            // "Allow EverSignal to install apps?"; the Files path stays as the fallback if anything is refused.
+            if (installDownloaded(v)) return;
+            boolean opened = openFilesApp();
+            view.toast((opened ? "In Files: " : "Open Files › ") + "Storage › Download › EverSignal-" + v + ".apk");
+            return;
+        }
         DownloadManager dm = getSystemService(DownloadManager.class);
         try {
             DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url))
@@ -319,13 +382,23 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         loadViewer(last, false);
     }
 
+    /** 1.0.13.1: the track the open viewer's pictures were collected for, and whether any came from inside it. */
+    private String viewerTrack;
+    private boolean viewerEmbedded;
+
     private void loadViewer(Poller.Snapshot sn, boolean replace) {
         if (sn == null) return;
         String path = sn.playingFrom, folder = folderOf(path);
         android.graphics.Bitmap cover = sn.cover;
+        viewerTrack = path;   // set now, so a second poll for the same track doesn't queue another load
         artExec.execute(() -> {
             java.util.List<ArtLoader.Item> items = canReadFiles() ? ArtLoader.collect(path) : new java.util.ArrayList<>();
+            boolean emb = false;
+            for (ArtLoader.Item it : items) if (it.data != null) { emb = true; break; }
+            final boolean hasEmbedded = emb;
             ui.post(() -> {
+                if (path != null && !path.equals(viewerTrack)) return;   // a newer track's load is on its way
+                viewerEmbedded = hasEmbedded;
                 if (replace && !view.viewerOpen()) return;   // closed while loading
                 int maxDim = Math.max(getWindow().getDecorView().getWidth(), getWindow().getDecorView().getHeight());
                 view.openViewer(new ArtShow(folder, items, cover, Math.max(720, maxDim), view::postInvalidate));
@@ -359,13 +432,22 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     private DrScan.Item drTrack;
     private DrScan.Album drAlbum;
     private boolean drTrackRunning;
+    private String drTrackWhy;            // 1.0.14: why the playing track can't be measured (null = it can, or unknown)
 
     private File drFile() {
         String p = last == null ? null : last.playingFrom;
         return ArtLoader.isLocal(p) && DrScan.isAudio(p) ? new File(p) : null;
     }
 
-    private void pushDr() { view.setDr(drFile() != null, drTrack, drTrackRunning, drAlbum); }
+    private boolean drDsd() {
+        String p = last == null ? null : last.playingFrom;
+        return ArtLoader.isLocal(p) && DrScan.isDsd(p);
+    }
+
+    private void pushDr() { view.setDr(drFile() != null, drDsd(), drTrack, drTrackWhy, drTrackRunning, drAlbum); }
+
+    /** Executor side: the reason, only when the cache says this file is unreadable. */
+    private static String why(File f) { return f != null && DrScan.knownUnreadable(f) ? DrScan.whyUnreadable(f) : null; }
 
     /** On every track change: what the cache already knows for this track and its folder (no decoding). */
     private void followDr() {
@@ -375,6 +457,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         String oldFolder = drAlbum == null ? null : drAlbum.folder;
         drFor = key;
         drTrack = null;
+        drTrackWhy = null;
         if (f == null || !canReadFiles()) { if (drAlbum != null && !drAlbum.running) drAlbum = null; pushDr(); return; }
         boolean sameFolder = f.getParent() != null && f.getParent().equals(oldFolder);
         if (!(sameFolder && drAlbum != null && drAlbum.running)) drAlbum = null;
@@ -383,9 +466,11 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         drExec.execute(() -> {
             DrScan.Item i = DrScan.cached(ff);
             DrScan.Album a = DrScan.fromCache(ff.getParentFile());
+            String w = why(ff);
             ui.post(() -> {
                 if (!key.equals(drFor)) return;
                 drTrack = i;
+                drTrackWhy = w;
                 if (drAlbum == null || !drAlbum.running) drAlbum = a;
                 pushDr();
             });
@@ -402,9 +487,10 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         drExec.execute(() -> {
             DrScan.Item i = DrScan.measureTrack(f, () -> drCancel);
             DrScan.Album a = DrScan.fromCache(f.getParentFile());
+            String w = i == null ? why(f) : null;
             ui.post(() -> {
                 drTrackRunning = false;
-                if (key.equals(drFor)) { drTrack = i; if (drAlbum == null || !drAlbum.running) drAlbum = a; }
+                if (key.equals(drFor)) { drTrack = i; drTrackWhy = w; if (drAlbum == null || !drAlbum.running) drAlbum = a; }
                 pushDr();
             });
         });
@@ -418,19 +504,89 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         // 1.0.12.13: a complete album = "Measure again": decode everything afresh (Michael wanted to re-run one)
         final boolean fresh = drAlbum != null && drAlbum.value() != null && dir.getPath().equals(drAlbum.folder);
         if (fresh) drTrack = null;
-        drExec.execute(() -> DrScan.measureAlbum(dir, a -> ui.post(() -> {
-            if (drAlbum == null || dir.getPath().equals(drAlbum.folder) || !drAlbum.running) {
-                File now = drFile();
-                if (now != null && dir.getPath().equals(now.getParent())) {
-                    drAlbum = a;
-                    for (DrScan.Item i : a.items) if (i.name.equals(now.getName())) drTrack = i;
+        drExec.execute(() -> {
+            DrScan.measureAlbum(dir, a -> ui.post(() -> {
+                if (drAlbum == null || dir.getPath().equals(drAlbum.folder) || !drAlbum.running) {
+                    File now = drFile();
+                    if (now != null && dir.getPath().equals(now.getParent())) {
+                        drAlbum = a;
+                        for (DrScan.Item i : a.items) if (i.name.equals(now.getName())) drTrack = i;
+                    }
                 }
-            }
-            pushDr();
-        }), () -> drCancel, fresh));
+                pushDr();
+            }), () -> drCancel, fresh);
+            // 1.0.14 (Pierre C.): the album pass may have found the PLAYING file unreadable: say why on its row
+            File now = drFile();
+            String w = now != null && dir.getPath().equals(now.getParent()) ? why(now) : null;
+            ui.post(() -> { if (now != null && now.getPath().equals(drFor)) { drTrackWhy = w; pushDr(); } });
+        });
     }
 
     @Override public void cancelDr() { drCancel = true; }
+
+    /** fix11: one MediaStore write into Download/<rel>; on any failure the half-made entry is removed. */
+    private void saveText(String name, String text, String rel) throws Exception {
+        android.content.ContentResolver cr = getContentResolver();
+        Uri u = null;
+        try {
+            android.content.ContentValues cv = new android.content.ContentValues();
+            cv.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+            cv.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+            cv.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, rel);
+            cv.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1);
+            u = cr.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+            if (u == null) throw new java.io.IOException("Android gave no file");
+            try (java.io.OutputStream o = cr.openOutputStream(u, "w")) {
+                if (o == null) throw new java.io.IOException("Android gave no stream");
+                o.write(text.getBytes(StandardCharsets.UTF_8));
+            }
+            android.content.ContentValues done = new android.content.ContentValues();
+            done.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0);
+            cr.update(u, done, null, null);
+        } catch (Exception e) {
+            if (u != null) { try { cr.delete(u, null, null); } catch (Exception ignored) { } }
+            throw e;
+        }
+    }
+
+    /**
+     * 1.0.14 (Pierre C.): the album's DR results as a text log in Download/EverSignal, laid out like foobar's DR Meter
+     * log so the two can be compared. Written through MediaStore, so no write permission is asked for; only on a tap.
+     */
+    @Override public void exportDr() {
+        final DrScan.Album a = drAlbum;
+        if (a == null || a.items.isEmpty()) return;
+        drExec.execute(() -> {
+            String name = "DR " + new File(a.folder).getName().replaceAll("[\\\\/:*?\"<>|]", "_") + " "
+                + new java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(new java.util.Date()) + ".txt";
+            String text = DrScan.log(a, "EverSignal " + BuildConfig.VERSION_NAME);
+            String msg;
+            if (android.os.Build.VERSION.SDK_INT < 29) msg = "Saving needs Android 10 or newer";
+            else {
+                // fix8: the file stays PENDING until written; a failed try is deleted; the toast says why.
+                // fix11: the FIRST save of a session failed with ENOENT on Michael's A6 (twice) while the next one
+                // worked: the A6's storage lags behind a just-made entry. So: try, wait, try again, then fall back
+                // to plain Download, which always exists.
+                String sub = Environment.DIRECTORY_DOWNLOADS + "/EverSignal";
+                Exception last = null;
+                msg = null;
+                for (int attempt = 0; attempt < 3 && msg == null; attempt++) {
+                    String rel = attempt < 2 ? sub : Environment.DIRECTORY_DOWNLOADS;
+                    try {
+                        if (attempt > 0) Thread.sleep(600);
+                        saveText(name, text, rel);
+                        msg = "Saved: " + (attempt < 2 ? "Download › EverSignal › " : "Download › ") + name;
+                    } catch (Exception e) { last = e; }
+                }
+                if (msg == null) {
+                    String why = last == null || last.getMessage() == null ? "unknown" : last.getMessage();
+                    msg = "Couldn't save the DR log: " + (why.length() > 80 ? why.substring(0, 80) + "…" : why);
+                }
+            }
+            final String m = msg;
+            ui.post(() -> view.toast(m));
+        });
+    }
 
     /** The viewer follows the music: a track from another album folder reloads its pictures; every track its lyrics. */
     private void followAlbum() {
@@ -440,6 +596,12 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         String f = folderOf(last.playingFrom);
         String shown = view.viewerFolder();
         if (f != null && !f.equals(shown)) loadViewer(last, true);
+        // 1.0.13.1: embedded art belongs to ONE track. In a folder of tracks from different albums (Václav H.,
+        // 2026-11-23) the viewer kept the first track's embedded cover (Hotel California while R.E.M. played),
+        // because it only reloaded on a folder change. Folder-only galleries still don't reload, so a real album's
+        // slideshow is never interrupted.
+        else if (f != null && viewerEmbedded && last.playingFrom != null && !last.playingFrom.equals(viewerTrack))
+            loadViewer(last, true);
         loadLyrics(last.playingFrom);
     }
 
@@ -493,6 +655,15 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         if (poller != null) poller.setFilesOn(on);
     }
 
+    /** 1.0.14: "Beta updates" (off by default). Switching re-checks at once, so the pill reflects the new channel. */
+    @Override public void toggleBeta() {
+        boolean on = !prefs().getBoolean("beta", false);
+        prefs().edit().putBoolean("beta", on).remove("upd_version").remove("upd_url").remove("upd_notes").apply();
+        view.setBeta(on);
+        showUpdate();
+        checkUpdates();
+    }
+
     @Override public void toggleFrame() {
         boolean on = !prefs().getBoolean("frame", true);
         prefs().edit().putBoolean("frame", on).apply();
@@ -527,7 +698,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     @Override public void checkUpdates() {
         view.checkStatus("Checking…", 20000);
         Thread t = new Thread(() -> {
-            UpdateCheck.Release r = UpdateCheck.latest(new UpdateCheck.UrlHttp(USER_AGENT));
+            UpdateCheck.Release r = UpdateCheck.newest(new UpdateCheck.UrlHttp(USER_AGENT), prefs().getBoolean("beta", false));
             ui.post(() -> {
                 if (r == null) { view.checkStatus("Couldn't reach GitHub", 1800); return; }
                 prefs().edit().putLong("upd_checked", System.currentTimeMillis()).putString("upd_version", r.version)

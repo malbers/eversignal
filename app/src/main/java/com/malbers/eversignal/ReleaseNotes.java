@@ -18,6 +18,16 @@ public final class ReleaseNotes {
 
     /** {version, date, bullet...}, newest first. Add the new release at the top on every version bump. */
     static final String[][] NOTES = {
+        {"1.0.14", "2026-11-25",
+            "Sound styles, caught! On firmware 1.6.40 and later, a sound style (EVS) changes your music, so EverSignal no longer calls it Bit-perfect: you see an amber Sound style on, it leads the Processing column, and an EVS on/off line sits under Sub. Older firmware is unaffected.",
+            "SACD ISO, done right! ISO tracks show as DSD native, with 2&6 ch and DST64 just like the Eversolo's own screen, and the badge explains both. Thanks to Pierre C.",
+            "Apple Music, in full! The Apple Music app's cover shows up, and its own quality, like Hi-Res Lossless, appears next to the badge. With EOS on you also see the track's sample rate.",
+            "Beta builds! A new Beta updates switch in Settings lets you try new features a few days before everyone else. Betas show up in the same Update pill. It's off by default, so nothing changes unless you switch it on.",
+            "Install updates in one tap! The Update pill now downloads and installs the new version itself. The first time, Android asks you to allow EverSignal to install apps.",
+            "Lyrics, calmer! Lyrics stay on from track to track, say \"No lyrics\" when a track has none, and sit on a soft gradient in the album's own colour. The button says COVER while lyrics are up, so the way back is obvious. Thanks to Pierre C.",
+            "Dynamic Range for Library plays! Albums played from the Library now measure too, EverSignal tells you why a file can't be measured (Dolby, DSD), and Save to Download keeps a foobar-style log. Thanks to Pierre C.",
+            "Full-Screen Album Mode follows the track! In a folder that mixes albums, the picture now changes with each track, and long titles scroll gently instead of being cut off. Thanks to Václav H.",
+            "Smaller fixes: ALAC 24/96 tracks the Eversolo reports as \"0.001 kHz\" now read right; three copies of the same song no longer get mixed up; PCM sent out as DSD says Converted to DSD; a 5.1 track on a stereo output says it's downmixed; a fresh open always starts on Simple."},
         {"1.0.13", "2026-11-22",
             "Dynamic Range! See how much a master was squashed, per track and per album: DR, peak and loudness, measured right on your Eversolo, with the same numbers as foobar's DR Meter. Detail, Track & file, then Measure track or Measure album (needs File access). The track's DR shows on the Simple screen too. Thanks to Pierre C.",
             "Simple Redesign! A cleaner Simple screen: a big verdict badge with the quality next to it, a signal path from Source to Port that turns amber exactly where your music gets changed, and bitrate, file size and input in one row.",

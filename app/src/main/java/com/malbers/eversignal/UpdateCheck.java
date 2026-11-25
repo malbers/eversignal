@@ -16,6 +16,8 @@ import org.json.JSONObject;
  */
 public final class UpdateCheck {
     public static final String LATEST = "https://api.github.com/repos/malbers/eversignal/releases/latest";
+    /** 1.0.14: every release incl. pre-releases (betas), newest first. Only read when "Beta updates" is on. */
+    public static final String ALL = "https://api.github.com/repos/malbers/eversignal/releases?per_page=15";
 
     private UpdateCheck() {}
 
@@ -39,11 +41,38 @@ public final class UpdateCheck {
         }
     }
 
+    /** 1.0.14: stable users read /latest (GitHub skips pre-releases there); beta users read the list and take the newest. */
+    public static Release newest(Http http, boolean beta) {
+        if (!beta) return latest(http);
+        try {
+            Object[] r = http.get(ALL);
+            if ((Integer) r[0] != 200) return null;
+            JSONArray a = new JSONArray(new String((byte[]) r[1], StandardCharsets.UTF_8));
+            Release best = null;
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject j = a.getJSONObject(i);
+                if (j.optBoolean("draft")) continue;
+                Release rel = parse(j);
+                if (rel != null && (best == null || isNewer(rel.version, best.version))) best = rel;
+            }
+            return best;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public static Release latest(Http http) {
         try {
             Object[] r = http.get(LATEST);
             if ((Integer) r[0] != 200) return null;
-            JSONObject j = new JSONObject(new String((byte[]) r[1], StandardCharsets.UTF_8));
+            return parse(new JSONObject(new String((byte[]) r[1], StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Release parse(JSONObject j) {
+        try {
             String tag = j.optString("tag_name", "");
             String version = tag.startsWith("v") ? tag.substring(1) : tag;
             if (version.isEmpty()) return null;
@@ -64,7 +93,11 @@ public final class UpdateCheck {
         }
     }
 
-    /** True when {@code remote} (e.g. "1.0.2") is a higher version than {@code local} (e.g. "1.0.1" or "1.0.1-test"). */
+    /**
+     * True when {@code remote} (e.g. "1.0.2") is a higher version than {@code local} (e.g. "1.0.1" or "1.0.1-test").
+     * 1.0.14: same numbers, then a release beats its own betas, and beta.2 beats beta.1. Other suffixes (local test
+     * builds) count as equal to their numbers, as before.
+     */
     public static boolean isNewer(String remote, String local) {
         int[] a = parts(remote);
         int[] b = parts(local);
@@ -73,8 +106,18 @@ public final class UpdateCheck {
             int y = i < b.length ? b[i] : 0;
             if (x != y) return x > y;
         }
-        return false;
+        int rb = beta(remote), lb = beta(local);
+        if (lb > 0 && rb == 0 && !hasSuffix(remote)) return true;   // the release after the beta you are on
+        return rb > 0 && lb > 0 && rb > lb;
     }
+
+    /** N for "-beta.N" (or "-betaN"), else 0. */
+    static int beta(String v) {
+        java.util.regex.Matcher m = v == null ? null : java.util.regex.Pattern.compile("-beta\\.?(\\d+)").matcher(v);
+        return m != null && m.find() ? Integer.parseInt(m.group(1)) : 0;
+    }
+
+    private static boolean hasSuffix(String v) { return v != null && v.split("[^0-9.]", 2).length > 1; }
 
     private static int[] parts(String v) {
         String core = v == null ? "" : v.split("[^0-9.]", 2)[0];

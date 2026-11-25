@@ -51,4 +51,27 @@ public class UpdateCheckTest {
         assertFalse(UpdateCheck.isNewer("1.0.0", "1.0.1"));
         assertFalse(UpdateCheck.isNewer("1.0", "1.0.0"));
     }
+
+    /** 1.0.14: the beta channel. A release beats its betas; beta.2 beats beta.1; a beta never "updates" a release. */
+    @Test public void betaCompare() {
+        assertTrue(UpdateCheck.isNewer("1.0.14", "1.0.14-beta.1"));
+        assertTrue(UpdateCheck.isNewer("1.0.14-beta.2", "1.0.14-beta.1"));
+        assertTrue(UpdateCheck.isNewer("1.0.14-beta.1", "1.0.13"));
+        assertFalse(UpdateCheck.isNewer("1.0.14-beta.1", "1.0.14"));
+        assertFalse(UpdateCheck.isNewer("1.0.14-beta.1", "1.0.14-beta.1"));
+        assertFalse(UpdateCheck.isNewer("1.0.13", "1.0.14-beta.1"));
+        assertFalse(UpdateCheck.isNewer("1.0.14", "1.0.14-test"));   // local test builds unchanged
+    }
+
+    @Test public void newestPicksTheHighestIncludingBetas() {
+        String list = "[{\"tag_name\":\"v1.0.14-beta.1\",\"prerelease\":true,\"html_url\":\"https://b1\"},"
+            + "{\"tag_name\":\"v1.0.13\",\"html_url\":\"https://r13\"},"
+            + "{\"tag_name\":\"v1.0.15-beta.1\",\"draft\":true,\"html_url\":\"https://d\"}]";
+        UpdateCheck.Release r = UpdateCheck.newest(url -> {
+            assertEquals(UpdateCheck.ALL, url);   // beta users read the full list, not /latest
+            return new Object[]{200, list.getBytes(StandardCharsets.UTF_8)};
+        }, true);
+        assertEquals("1.0.14-beta.1", r.version);
+        assertEquals("https://b1", r.url);
+    }
 }

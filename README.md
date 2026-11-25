@@ -331,7 +331,24 @@ From 1.0.10, tapping the Update pill shows what's new in that version first, the
 
 **Want the update right now?** Tap the **gear**, then **Check for updates**. (On 1.0.9 or earlier: long-press **EverSignal** in Apps, choose **Clear data**, then open the app. It checks again straight away and the **Update** pill shows up. Clearing data only resets EverSignal itself: Simple or Detail, Stay in front, and today's listening stats. Nothing on your player changes.)
 
+### Beta builds
+
+Want new features a few days early? Tap the **gear** and switch on **Beta updates**. From then on the Update pill also offers beta versions (named like `1.0.15-beta.1`). When the final version comes out, the pill offers it as usual. Switch it off any time: you stay on the beta you have until the next regular release.
+
+Betas are real releases, signed with the same key, but newer and less tested. If something looks wrong, the feedback page (gear › Send feedback) is the fastest way to tell me.
+
 ## What's new
+
+**1.0.14** (25 November 2026)
+- **Sound styles, caught!** On firmware 1.6.40 and later, a sound style (EVS) changes your music, so EverSignal no longer calls it Bit-perfect: you see an amber **Sound style on**, it leads the Processing column, and an EVS on/off line sits under Sub. Older firmware is unaffected.
+- **SACD ISO, done right!** ISO tracks show as DSD native, with **2&6 ch** and **DST64** just like the Eversolo's own screen, and the badge explains both. Thanks to Pierre C.
+- **Apple Music, in full!** The Apple Music app's cover shows up, and its own quality, like **Hi-Res Lossless**, appears next to the badge. With EOS on you also see the track's sample rate.
+- **Beta builds!** A new **Beta updates** switch in Settings lets you try new features a few days before everyone else. Betas show up in the same Update pill. It's off by default, so nothing changes unless you switch it on.
+- **Install updates in one tap!** The Update pill now downloads and installs the new version itself. The first time, Android asks you to allow EverSignal to install apps.
+- **Lyrics, calmer!** Lyrics stay on from track to track, say "No lyrics" when a track has none, and sit on a soft gradient in the album's own colour. The button says **COVER** while lyrics are up, so the way back is obvious. Thanks to Pierre C.
+- **Dynamic Range for Library plays!** Albums played from the Library now measure too, EverSignal tells you why a file can't be measured (Dolby, DSD), and Save to Download keeps a foobar-style log. Thanks to Pierre C.
+- **Full-Screen Album Mode follows the track!** In a folder that mixes albums, the picture now changes with each track, and long titles scroll gently instead of being cut off. Thanks to Václav H.
+- **Smaller fixes:** ALAC 24/96 tracks the Eversolo reports as "0.001 kHz" now read right; three copies of the same song no longer get mixed up; PCM sent out as DSD says **Converted to DSD**; a 5.1 track on a stereo output says it's downmixed; a fresh open always starts on Simple.
 
 **1.0.13** (22 November 2026)
 - **Dynamic Range!** See how much a master was squashed, per track and per album: DR, peak and loudness, measured right on your Eversolo, with the same numbers as foobar's DR Meter. Detail › Track & file › **Measure track** or **Measure album**. The track's DR shows on the Simple screen too. Thanks to Pierre C.

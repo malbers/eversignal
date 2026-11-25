@@ -121,6 +121,19 @@ public class TrackTest {
         assertEquals("Multichannel", t.sacdArea); // fixture sacdArea = 1
     }
 
+    /** An SACD ISO track is reported as "SACD" (Pierre C., 2026-11-24): it must read as DSD, not Hi-res Bit-perfect.
+     *  No ISO capture exists yet, so this reuses the DSF capture with the extension his screenshot shows. */
+    @Test public void sacdIsoIsDsdNative() throws Exception {
+        try (InputStream in = TrackTest.class.getResourceAsStream("/fixtures/dsd256.json")) {
+            JSONObject j = new JSONObject(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            j.getJSONObject("playingMusic").put("extension", "SACD");
+            Track t = Track.from(Flat.of(j), true);
+            assertTrue(t.dsd);
+            assertEquals(Track.Badge.DSD_NATIVE, t.badge);
+            assertEquals("Multichannel", t.sacdArea);
+        }
+    }
+
     @Test public void mqaFlacUnfoldsTimesEight() throws Exception {
         Track t = load("mqa-flac");
         assertEquals(Track.Badge.MQA, t.badge);

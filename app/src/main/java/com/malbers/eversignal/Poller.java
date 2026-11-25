@@ -119,6 +119,7 @@ public final class Poller implements Runnable {
                 // until readQueue runs below.
                 M4aCodec.Info ci = changed ? null : codecOf(t);
                 if (ci != null) t.applyM4aCodec(ci.codec, ci.channels, ci.atmos, now - keyChangedAt >= SETTLE_MS);
+                if (ci != null) t.applyHeaderRate(ci.rate, now - keyChangedAt >= SETTLE_MS);   // 1.0.14: ALAC "0.001 kHz"
                 hold.apply(t, t.state == 3 && now - lastStartAt >= SETTLE_MS && now - keyChangedAt >= SETTLE_MS, now);
                 if (recheck) { recheck = false; settle.reset(); }   // 1.0.12-2: back from another screen
                 settle.apply(t, now);   // after the hold: only decides when the badge may change
@@ -129,7 +130,7 @@ public final class Poller implements Runnable {
                     readQueue(s, t);
                 }
                 if (coverAgain) { coverAgain = false; artRef = "again"; }   // 1.0.12: file access just granted
-                String ref = t.artUrl != null ? "u:" + t.artUrl : t.artPath != null ? "p:" + t.artPath : t.artId != null ? "i:" + t.artId : null;
+                String ref = t.artUrl != null ? "u:" + t.artUrl : t.artFile != null ? "f:" + t.artFile : t.artPath != null ? "p:" + t.artPath : t.artId != null ? "i:" + t.artId : null;
                 if (ref == null ? artRef != null : !ref.equals(artRef)) { artRef = ref; cover = null; coverRetry.start(now); }   // never show the last track's cover
                 int coverGen = coverRetry.take(now);
                 if (coverGen > 0) {
@@ -290,7 +291,7 @@ public final class Poller implements Runnable {
     /** "Up next" plus file details for the current local track. Small, bounded reads only. */
     private void readQueue(Map<String, String> s, Track t) {
         nextTitle = null; fileName = null; genre = null; disc = null; sizeBytes = null;
-        queueItem = null; queuePos = -1; queueTotal = -1; queueDurationMs = -1;
+        queueItem = null; queuePos = -1; queueTotal = -1; queueDurationMs = -1; queueCodec = null;
         upNext = new ArrayList<>();
         audioHost = null; exactBps = null;
         // Where it plays from: the stream link WITHOUT its signed token or the file path.
@@ -306,40 +307,57 @@ public final class Poller implements Runnable {
             // trackIndex is -1 for TIDAL, and TIDAL marks EVERY queue item "active" (seen 2026-11-15), so the
             // current track is found by title + artist, searching near where it was last found first.
             int[] windows = idx >= 0 ? new int[]{idx} : new int[]{Math.max(0, lastQueueIdx - 3), 0, 30, 60};
+            // 1.0.14: an exact id match anywhere wins over a title match. Three copies of one song with the same
+            // title (BINI: ALAC, AAC, Atmos) made the ALAC play show the Atmos copy's details (seen 2026-11-24).
+            JSONArray fbArr = null; int fbI = -1, fbStart = 0;
             for (int start : windows) {
                 JSONObject q = new JSONObject(api.text(Api.queue(start, idx >= 0 ? 6 : 30)));
                 queueTotal = q.optInt("total", -1);
                 long td = q.optLong("totalDuration", -1);
                 queueDurationMs = td > 0 ? td : -1;
                 JSONArray arr = q.optJSONArray("array");
-                if (arr == null) return;
-                if (findCurrent(arr, idx >= 0 ? 0 : -1, start, t)) return;
-                if (queueTotal >= 0 && start + 30 >= queueTotal && start != Math.max(0, lastQueueIdx - 3)) return;
+                if (arr == null) break;
+                if (idx >= 0) { if (arr.length() > 0) fill(arr, 0, start, t); return; }
+                int i = pick(arr, t.trackId, t.title, t.artist, true);
+                if (i >= 0) { fill(arr, i, start, t); return; }
+                if (fbArr == null && (i = pick(arr, t.trackId, t.title, t.artist, false)) >= 0) {
+                    fbArr = arr; fbI = i; fbStart = start;
+                }
+                if (queueTotal >= 0 && start + 30 >= queueTotal && start != Math.max(0, lastQueueIdx - 3)) break;
             }
+            if (fbArr != null) fill(fbArr, fbI, fbStart, t);
         } catch (Exception ignored) { }
     }
 
     private int lastQueueIdx = 0;
 
-    private static boolean sameTrack(JSONObject it, Track t) {
-        // 1.0.8: an id match counts. The state and the queue can title the same file differently (file name vs tag,
-        // seen 2026-11-17: "01 ALAC 24-96" vs "EverSignal test ALAC 24-96", same id 32592). The title still counts
-        // too: for TIDAL the state's id differs from the queue's (seen 2026-11-15), so id alone would lose TIDAL.
-        String id = it.optString("id", "");
-        if (t.trackId != null && !id.isEmpty() && !"-1".equals(id) && t.trackId.equals(id)) return true;
-        if (t.title == null || !t.title.equalsIgnoreCase(it.optString("title"))) return false;
-        String a = it.optString("artist", "");
-        return t.artist == null || a.isEmpty() || t.artist.equalsIgnoreCase(a);
+    /**
+     * Index of the current track in one queue window, or -1. byId: only an exact id match; else only a title (+ artist)
+     * match. 1.0.8: the state and the queue can title the same file differently (file name vs tag, seen 2026-11-17:
+     * "01 ALAC 24-96" vs "EverSignal test ALAC 24-96", same id 32592), so the id is tried first. The title still
+     * counts as a fallback: for TIDAL the state's id differs from the queue's (seen 2026-11-15).
+     */
+    static int pick(JSONArray arr, String trackId, String title, String artist, boolean byId) {
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject it = arr.optJSONObject(i);
+            if (it == null) continue;
+            if (byId) {
+                String id = it.optString("id", "");
+                if (trackId != null && !id.isEmpty() && !"-1".equals(id) && trackId.equals(id)) return i;
+            } else if (title != null && title.equalsIgnoreCase(it.optString("title"))) {
+                String a = it.optString("artist", "");
+                if (artist == null || a.isEmpty() || artist.equalsIgnoreCase(a)) return i;
+            }
+        }
+        return -1;
     }
 
-    /** Fills the current-item fields from one queue window. forced >= 0 means "the item at that index is current". */
-    private boolean findCurrent(JSONArray arr, int forced, int start, Track t) {
+    /** Fills the current-item fields from item i of one queue window. */
+    private void fill(JSONArray arr, int i, int start, Track t) {
         {
-            for (int i = 0; i < arr.length(); i++) {
+            {
                 JSONObject it = arr.optJSONObject(i);
-                if (it == null) continue;
-                boolean cur = forced >= 0 ? i == forced : sameTrack(it, t);
-                if (!cur) continue;
+                if (it == null) return;
                 queuePos = start + i + 1;
                 lastQueueIdx = start + i;
                 queueItem = Raw.cleanQueueItem(Flat.of(it));
@@ -353,6 +371,13 @@ public final class Poller implements Runnable {
                 String url = blank(it.optString("url"));
                 if (path != null && !path.startsWith("http")) playingFrom = path;
                 else if (url != null && !url.startsWith("http") && playingFrom == null) playingFrom = url;
+                // 1.0.14 (Pierre C., measured on Michael's A6 2026-11-23): a LIBRARY play has no path or url at all,
+                // only "uri", relative to its drive ("/EverSoloMusic/..."). Without it EverSignal took the track for a
+                // stream: no DR, no folder art, no lyrics, no .m4a codec.
+                String uri = blank(it.optString("uri"));
+                if (playingFrom == null && uri != null && filesOn) playingFrom = resolveUri(uri);
+                // the queue also names the codec ("EAC3", "AAC", "ALAC"): used when the file header can't be read
+                queueCodec = blank(it.optString("codec"));
                 if (url != null && url.startsWith("http") && t.service != null) {
                     try { audioHost = new java.net.URL(url).getHost(); } catch (Exception ignored) { }
                     if (playingFrom == null) playingFrom = hideToken(url);
@@ -370,10 +395,27 @@ public final class Poller implements Runnable {
                     upNext.add(new String[]{nx.optString("title"), nx.optString("artist"), fmt});
                 }
                 if (!upNext.isEmpty()) nextTitle = blank(upNext.get(0)[0]);
-                return true;
             }
         }
-        return false;
+    }
+
+    /** 1.0.14: decode a local picture file at about maxPx, or null (missing, unreadable, not a picture). */
+    static Bitmap decodeFile(String path, int maxPx) {
+        try {
+            java.io.File f = new java.io.File(path);
+            if (!f.canRead() || f.length() <= 64) return null;
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(path, o);
+            if (o.outWidth <= 0) return null;
+            int sample = 1;
+            while (o.outWidth / (sample * 2) >= maxPx) sample *= 2;
+            o = new BitmapFactory.Options();
+            o.inSampleSize = sample;
+            return BitmapFactory.decodeFile(path, o);
+        } catch (Exception | OutOfMemoryError e) {
+            return null;
+        }
     }
 
     private static String blank(String v) { return v == null || v.trim().isEmpty() ? null : v.trim(); }
@@ -396,9 +438,44 @@ public final class Poller implements Runnable {
     private String codecPath;
     private M4aCodec.Info codecValue;
     private M4aCodec.Info codecOf(Track t) {
-        if (!t.m4a || !filesOn || !ArtLoader.isLocal(playingFrom) || !M4aCodec.isM4a(playingFrom)) return null;
-        if (!playingFrom.equals(codecPath)) { codecPath = playingFrom; codecValue = M4aCodec.read(new java.io.File(playingFrom)); }
-        return codecValue;
+        if (!t.m4a) return null;
+        if (filesOn && ArtLoader.isLocal(playingFrom) && M4aCodec.isM4a(playingFrom)) {
+            if (!playingFrom.equals(codecPath)) { codecPath = playingFrom; codecValue = M4aCodec.read(new java.io.File(playingFrom)); }
+            if (codecValue != null) return codecValue;
+        }
+        return fromQueue(queueCodec);   // 1.0.14: no file (or File access off): the queue's own codec name
+    }
+
+    private String queueCodec;
+
+    /** 1.0.14: the queue's codec name in M4aCodec's terms. Channels unknown here, so Dolby shows no channel count. */
+    static M4aCodec.Info fromQueue(String c) {
+        if (c == null) return null;
+        switch (c.trim().toUpperCase(java.util.Locale.US)) {
+            case "EAC3": case "E-AC-3": case "EC3": return new M4aCodec.Info("ec-3", null, false);
+            case "AC3": case "AC-3": return new M4aCodec.Info("ac-3", null, false);
+            case "AC4": case "AC-4": return new M4aCodec.Info("ac-4", null, false);
+            case "AAC": return new M4aCodec.Info("mp4a", null, false);
+            case "ALAC": return new M4aCodec.Info("alac", null, false);
+            case "FLAC": return new M4aCodec.Info("flac", null, false);
+            default: return null;
+        }
+    }
+
+    /** 1.0.14: drive root for a queue "uri", found once by checking which drive has the file. */
+    private static final java.util.Map<String, String> uriRoots = new java.util.HashMap<>();
+    static String resolveUri(String uri) {
+        if (uri == null || !uri.startsWith("/")) return null;
+        if (uri.startsWith("/storage/") || uri.startsWith("/sdcard/")) return uri;   // already absolute
+        String top = uri.indexOf('/', 1) > 0 ? uri.substring(0, uri.indexOf('/', 1)) : uri;
+        String known = uriRoots.get(top);
+        if (known != null && new java.io.File(known + uri).exists()) return known + uri;
+        java.util.List<String> roots = new java.util.ArrayList<>();
+        java.io.File[] vols = new java.io.File("/storage").listFiles();
+        if (vols != null) for (java.io.File v : vols) if (!"self".equals(v.getName()) && !"emulated".equals(v.getName())) roots.add(v.getPath());
+        roots.add("/storage/emulated/0");
+        for (String r : roots) if (new java.io.File(r + uri).exists()) { uriRoots.put(top, r); return r + uri; }
+        return null;
     }
     void setFilesOn(boolean on) { filesOn = on; }
     /** 1.0.12: load the current track's cover again (called after file access is granted). */
@@ -419,6 +496,12 @@ public final class Poller implements Runnable {
         if (localPath != null) {
             b = ArtLoader.mainCover(localPath, 700);
             if (b != null) out = CoverRetry.Outcome.OK;
+        }
+        // 1.0.14: a cover the player cached as a file (Apple Music app). Read straight from storage; needs File access.
+        if (b == null && t.artFile != null && filesOn) {
+            b = decodeFile(t.artFile, 700);
+            if (b != null && isPlaceholder(b)) b = null;
+            out = b != null ? CoverRetry.Outcome.OK : CoverRetry.Outcome.NONE;
         }
         if (b == null) try {
             byte[] data = t.artUrl != null ? Api.bytes(t.artUrl, 8000)

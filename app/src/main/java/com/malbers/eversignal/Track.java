@@ -63,9 +63,20 @@ public final class Track {
     public Double outRateHz;
     public String iface, ifaceRaw;
     public boolean mqaOut, eq, dsp, sub, mute, volumeLocked, isDsdOut;
+    /** 1.0.14: a sound style (Voice Style, new in firmware 1.6.40) is on. The player only applies it to PCM. */
+    public boolean style;
+    /** 1.0.14: the player reports sound styles at all (firmware 1.6.40 and later). Older firmware: no EVS line. */
+    public boolean styleKnown;
+    /** 1.0.14: an Android app's own quality claim ("Hi-Res Lossless") and its reported rate (trusted only with EOS on). */
+    public String appTier;
+    public Double appRateHz;
+    /** 1.0.14: an SACD ISO's second (multichannel) area, e.g. 6. The stock screen shows "2&6 ch". About the DISC, not the output. */
+    public Double channelsSecond;
     public String volume, sacdArea;
     // art: a web URL, a path on the player, or a library track id
     public String artUrl, artPath, artId;
+    /** 1.0.14: a cover the player cached as a local file (Apple Music app, casts): /storage/emulated/0/.zcontrol/... */
+    public String artFile;
 
     public Badge badge = Badge.NONE;
     public String badgeText = "", badgeNote = "";
@@ -99,10 +110,14 @@ public final class Track {
             splitAlbum(t, rawAlbum);
             t.container = upper(Flat.str(s, pm + "extension"));
             t.codec = Flat.str(s, pm + "codec");
-            t.rateHz = Flat.pos(s, pm + "sampleRateNumber");
-            if (t.rateHz == null) t.rateHz = parseRate(Flat.str(s, pm + "sampleRate"));
+            t.rateHz = realRate(Flat.pos(s, pm + "sampleRateNumber"));
+            if (t.rateHz == null) t.rateHz = realRate(parseRate(Flat.str(s, pm + "sampleRate")));
             t.bits = Flat.pos(s, pm + "bits");
             t.channels = Flat.pos(s, pm + "channels");
+            // 1.0.14 (Pierre C. I1, measured on the Gen 1 2026-11-25, Genesis SACD ISO): channels 2 + channelsSecond 6
+            // on every port and SACD area setting. Output channels are never reported (outPutChannels 0).
+            Double c2 = Flat.pos(s, pm + "channelsSecond");
+            if (c2 != null && t.channels != null && Math.round(c2) != Math.round(t.channels)) t.channelsSecond = c2;
             String br = Flat.str(s, pm + "bitrate");
             t.bitrate = Flat.pos(s, pm + "bitrate") == null ? null : br.replace(',', '.');
             t.trackId = Flat.str(s, pm + "id");
@@ -134,8 +149,17 @@ public final class Track {
             String icon = Flat.str(s, info + "icon");
             t.artUrl = firstUrl(art, icon);
             if (t.artUrl == null) t.artPath = icon != null && icon.startsWith("/SystemSettings/") ? icon : null;
+            // 1.0.14: the Apple Music app's albumUrl is a FILE the player cached on its own storage (seen 2026-11-24:
+            // /storage/emulated/0/.zcontrol/cache/phonecontrol/online_app_<hash>); the stock screen shows it, we skipped it.
+            if (t.artUrl == null && art != null && art.startsWith("/storage/")) t.artFile = art;
             // 1.0.12.9: for an Android app the "source" block is Android's mixer, not the file: a 44.1/48 kHz track read
             // 192 kHz "Hi-res" with EOS off (A6 Gen 1, 2026-11-22). Show no source format at all; OUTPUT carries the rate.
+            // 1.0.14 (Michael 2026-11-25, Apple Music app, fw 1.6.40): the app's own tier is in qualityIcon
+            // (".../applemusic_hires_lossless.png"), where the stock screen's "Hi-Res Lossless" comes from. The rate is
+            // kept aside: with EOS on it is the track's (176.4 kHz read 176400, 2026-11-22), with EOS off it is
+            // Android's 192 kHz, so it is only shown when EOS is on.
+            t.appTier = tierFromIcon(Flat.str(s, ain + "qualityIcon"));
+            t.appRateHz = t.rateHz;
             if (t.externalApp) { t.container = null; t.rateHz = null; t.bits = null; t.channels = null; }
         }
         t.canSeek = Flat.yes(s, info + "isCanSeek") || t.ownPlayer;
@@ -143,7 +167,9 @@ public final class Track {
         t.key = (t.ownPlayer ? "own" : "ext") + "|" + Flat.str(s, pm + "id") + "|" + t.title + "|" + t.artist;
 
         String c = (t.container == null ? "" : t.container) + " " + (t.codec == null ? "" : t.codec);
-        t.dsd = c.matches("(?is).*\\b(dsf|dff|dsd|iso)\\b.*") || c.toUpperCase(Locale.US).contains("DSD");
+        // 1.0.14: "sacd" added. The A6 reports a track played from an SACD ISO as "SACD" (Pierre C.'s screenshot,
+        // 2026-11-24), which none of the old words matched: it showed Hi-res + Bit-perfect instead of DSD native.
+        t.dsd = c.matches("(?is).*\\b(dsf|dff|dsd|iso|sacd)\\b.*") || c.toUpperCase(Locale.US).contains("DSD");
         t.lossy = t.container != null && LOSSY.matcher(t.container).matches();
         // 1.0.8: .m4a holds ALAC (lossless) or AAC (lossy), and the player names neither (no codec field; its
         // isLossless flag is false even for ALAC). Measured 2026-11-17 on the A6: ALAC 24/96 reports bits 24 and
@@ -179,6 +205,10 @@ public final class Track {
                 : area.intValue() == 1 ? "Multichannel" : area.intValue() == 0 ? "Stereo" : null;
         t.eq = Flat.yes(s, "eqActive");
         t.dsp = Flat.yes(s, "dspActive");
+        // 1.0.14 (measured on the Gen 1, fw 1.6.40, 2026-11-25): voiceStyleActive is true for a FLAC 44.1/24 with a style on,
+        // output still PCM 44.1 (so the old rules said Bit-perfect); false on a DSF, where the stock player hides the option.
+        t.style = Flat.yes(s, "voiceStyleActive");
+        t.styleKnown = Flat.str(s, "voiceStyleActive") != null;
         t.sub = Flat.yes(s, "subActive");
 
         // volume: locked, or 0 dB, or current step == max step
@@ -213,7 +243,7 @@ public final class Track {
         boolean sameId = trackId != null && qid != null && !"-1".equals(qid) && trackId.equals(qid);
         boolean sameTitle = title != null && title.equalsIgnoreCase(Flat.str(q, "title"));
         if (!sameId && !sameTitle) return false;
-        Double qr = Flat.pos(q, "sampleRateNumber");
+        Double qr = realRate(Flat.pos(q, "sampleRateNumber"));   // 1.0.14: the queue says 1 for some ALAC 24/96
         Double qb = Flat.pos(q, "bits");
         boolean changed = false;
         if (qr != null && !qr.equals(rateHz)) { rateHz = qr; changed = true; }
@@ -323,20 +353,25 @@ public final class Track {
             badgeNote = ownPlayer ? (bitrate == null ? what : what + " · " + bitrate) : playerLabel + " · no lossless path";
         } else if (outCodec != null && outRateHz != null && rateHz != null) {
             boolean same = Math.abs(outRateHz - rateHz) < 1;
-            if (same && !eq && !dsp && !volumeOk) {
+            if (same && !eq && !dsp && !style && !volumeOk) {
                 badge = Badge.VOLUME; badgeText = "Volume " + (volume == null ? "lowered" : volume.replace("-", "−"));
                 badgeNote = "digital volume changes the samples";
-            } else if (same && !eq && !dsp && codecUnknown) {
+            } else if (same && !eq && !dsp && !style && codecUnknown) {
                 badge = Badge.UNVERIFIED; badgeText = "No verdict";
                 badgeNote = "M4A codec not checked";
-            } else if (same && !eq && !dsp) {
+            } else if (same && !eq && !dsp && !style) {
                 badge = Badge.BIT_PERFECT; badgeText = "Bit-perfect";
                 badgeNote = in + " in = " + rateCompact(outRateHz) + " out" + (eqSkipped() ? " · EQ skipped" : "");
+            } else if (!same && !dsd && isDsdCodec(outCodec)) {
+                // 1.0.14: PCM in, DSD out (the player's DSD Conversion setting; DSD128 measured on 1.6.40, 2026-11-24).
+                // Same verdict as Resampled (the samples change), but say what actually happened.
+                badge = Badge.RESAMPLED; badgeText = "Converted to DSD";
+                badgeNote = in + " in → " + outCodec.replace(" ", "") + " out";
             } else if (!same) {
                 badge = Badge.RESAMPLED; badgeText = "Resampled";
                 badgeNote = in + " in → " + rateCompact(outRateHz) + " out";
             } else {
-                badge = Badge.EQ_ACTIVE; badgeText = eq ? "EQ active" : "DSP active";
+                badge = Badge.EQ_ACTIVE; badgeText = eq ? "EQ active" : style && !dsp ? "Sound style on" : "DSP active";
                 badgeNote = in + " in → " + rateCompact(outRateHz) + " out";
             }
         } else if (!settled) {
@@ -347,6 +382,7 @@ public final class Track {
         } else {
             badge = Badge.NONE; badgeText = ""; badgeNote = "";
         }
+        if (badge != Badge.NONE && badgeNote != null && !badgeNote.isEmpty()) badgeNote += downmixNote();
     }
 
     // ---------------------------------------------------------------- formatting helpers (shared with the view)
@@ -360,6 +396,24 @@ public final class Track {
     }
 
     /** 1.0.12: the RATE / DEPTH tile's second line: "24-bit · 2 ch", "1-bit · 5 ch"; either half alone when the other is unknown. */
+    /** 1.0.14: "2 ch", or "2&6 ch" for an SACD ISO with a multichannel area; null when unknown. */
+    public String chText() {
+        if (channels == null || channels < 1) return null;
+        return Math.round(channels) + (channelsSecond == null ? "" : "&" + Math.round(channelsSecond)) + " ch";
+    }
+
+    /** 1.0.14: depth + channels for this track (knows about "2&6 ch"). */
+    public String depthChannels() {
+        String b = bits == null ? null : Math.round(bits) + "-bit", ch = chText();
+        if (b == null) return ch == null ? "" : ch;
+        return ch == null ? b : b + " · " + ch;
+    }
+
+    /** 1.0.14: "DST64" when the player says the DSD is DST-compressed (SACD ISO, codec "DST 64"), else null. */
+    public String dstName() {
+        return codec != null && codec.toUpperCase(Locale.US).replace(" ", "").startsWith("DST") ? codec.replace(" ", "").toUpperCase(Locale.US) : null;
+    }
+
     public static String depthChannels(Double bits, Double channels) {
         String b = bits == null ? null : Math.round(bits) + "-bit";
         String ch = channels == null || channels < 1 ? null : Math.round(channels) + " ch";
@@ -398,6 +452,32 @@ public final class Track {
         String s = String.format(Locale.US, "%.2f", v);
         s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
         return s;
+    }
+
+    /**
+     * 1.0.14: no real audio runs below 8 kHz. fw 1.6.40 reports an ALAC 24/96 from the Library as 1 Hz ("0.001 kHz",
+     * Eversolo bug B4), which made it read "Resampled" against 96 kHz out. Treated as unknown; the file header fills it.
+     */
+    static Double realRate(Double hz) { return hz == null || hz < 8000 ? null : hz; }
+
+    /** 1.0.14: the header's rate for an .m4a when the player gave none (or a bogus one). True when it changed. */
+    boolean applyHeaderRate(Double hz, boolean settled) {
+        if (!m4a || hz == null || rateHz != null) return false;
+        rateHz = hz;
+        formatShort(); computeBadge(settled);
+        return true;
+    }
+
+    /** 1.0.14: "applemusic_hires_lossless.png" -> "Hi-Res Lossless"; null when there is no recognisable tier. */
+    static String tierFromIcon(String icon) {
+        if (icon == null) return null;
+        String n = icon.toLowerCase(Locale.US);
+        int i = n.indexOf("iconname=");
+        if (i >= 0) n = n.substring(i + 9);
+        if (n.contains("atmos") || n.contains("dolby")) return "Dolby Atmos";
+        if (n.contains("hires") || n.contains("hi_res") || n.contains("hi-res")) return "Hi-Res Lossless";
+        if (n.contains("lossless")) return "Lossless";
+        return null;
     }
 
     static Double parseRate(String v) {
@@ -439,6 +519,18 @@ public final class Track {
             case "HDMI": return "HDMI";
             default: return tag;
         }
+    }
+
+    /**
+     * 1.0.14: " · 5.1 downmixed to 2 ch" when a multichannel source plays out a port that only carries stereo
+     * (optical/coax, XLR/RCA). HDMI carries 5.1, and a USB DAC could be multichannel, so those say nothing.
+     */
+    String downmixNote() {
+        if (channels == null || channels <= 2 || ifaceRaw == null) return "";
+        if (!ifaceRaw.toUpperCase(Locale.US).matches("SPDIF|OPT|COAX|XLRRCA|XLR|RCA")) return "";
+        int ch = channels.intValue();
+        String layout = ch == 6 ? "5.1" : ch == 8 ? "7.1" : ch + " ch";
+        return " · " + layout + " downmixed to 2 ch";
     }
 
     public boolean analogPort() {

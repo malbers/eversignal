@@ -50,6 +50,7 @@ public final class ScreenView extends View {
         void openViewer();
         /** 1.0.12: Settings & about, the cover frame switch. */
         void toggleFrame();
+        void toggleBeta();
         /** 1.0.12-3: Settings, slideshow speed for Full-Screen Album Mode (5/10/20/30/60 s). */
         void setSlideSecs(int secs);
         /** 1.0.12-3: Settings, File access "Allow": the Android permission prompt. */
@@ -60,6 +61,7 @@ public final class ScreenView extends View {
         void measureDrTrack();
         void measureDrAlbum();
         void cancelDr();
+        void exportDr();
     }
 
     // 1.0.12: full-screen album art viewer. Flips on its own every SLIDE_MS; a swipe steps; a tap or Back closes.
@@ -72,9 +74,12 @@ public final class ScreenView extends View {
     private boolean frame = true;
     private final java.util.WeakHashMap<Bitmap, Integer> frameColours = new java.util.WeakHashMap<>();
 
+    private int lyricHue;   // 1.0.14: the lyrics background colour, taken once per album from its art (0 = not yet)
+
     public void openViewer(ArtShow a) {
         if (viewer != null) viewer.close();
         viewer = a; vIdx = 0;
+        lyricHue = 0;
         long now = System.currentTimeMillis();
         vNextAt = now + slideMs(); vChangedAt = now;
         invalidate();
@@ -83,6 +88,8 @@ public final class ScreenView extends View {
     public String viewerFolder() { return viewer == null ? null : viewer.folder; }
     public void closeViewer() { if (viewer != null) { viewer.close(); viewer = null; invalidate(); } }
     public void setFrame(boolean on) { frame = on; invalidate(); }
+    private boolean betaOn;
+    public void setBeta(boolean on) { betaOn = on; invalidate(); }
 
     /** 1.0.12: lyrics for the playing track (null = none). The LYRICS button only appears when there are some. */
     private Lrc lyrics;
@@ -96,9 +103,11 @@ public final class ScreenView extends View {
 
     /** The QUALITY tile's word, shared with the full-screen stats line. */
     private static String quality(Track t) {
-        if (t.externalApp) return "Format not reported";   // 1.0.12.10: a blank read as broken (Michael)
-        return t.quality != null ? t.quality
-            : t.dsd ? "DSD" : t.lossy ? "Lossy" : "hires".equals(t.formatClass()) ? "Hi-res" : t.rateHz == null ? null : "CD quality";
+        if (t.externalApp) return t.appTier != null ? t.appTier : "Format not reported";   // 1.0.14: the app's own tier
+        // 1.0.13.1: never the service's streamQuality here. TIDAL reports its quality SETTING ("highres") for
+        // every track, so a 44.1/16 track read "highres" (Michael 2026-11-22). The word follows the track's format;
+        // the raw value stays on Detail page 1's Quality row.
+        return t.dsd ? "DSD" : t.lossy ? "Lossy" : "hires".equals(t.formatClass()) ? "Hi-res" : t.rateHz == null ? null : "CD quality";
     }
 
     /** Step the viewer by d pictures, skipping any that can't be decoded; restarts the auto-flip timer. */
@@ -276,7 +285,8 @@ public final class ScreenView extends View {
             drawViewer(c, sn);
             long now = System.currentTimeMillis();
             if (toast != null && now < toastUntil) drawToast(c);
-            postInvalidateDelayed(250);
+            // 1.0.13.1: vsync frames only while the label fades or the title scrolls (a 33 ms timer stuttered)
+            if (vAnim) postInvalidateOnAnimation(); else postInvalidateDelayed(250);
             return;
         }
 
@@ -293,7 +303,10 @@ public final class ScreenView extends View {
         if (toast != null && now < toastUntil) drawToast(c);
         boolean animate = (sn != null && sn.track != null && sn.track.state == 3) || (toast != null && now < toastUntil)
             || (info != null && now < infoUntil);
-        if (animate) postInvalidateDelayed(200);
+        boolean simpleTitle = !detail && sn != null && sn.track != null;
+        if (simpleTitle && sAnim) postInvalidateOnAnimation();          // fix4: the Simple title is scrolling
+        else if (animate) postInvalidateDelayed(200);
+        else if (simpleTitle && sWakeAt > now) postInvalidateDelayed(Math.min(sWakeAt - now + 16, 10000));   // paused: wake for the next scroll
     }
 
     private float X(float d) { return ox + d * s; }
@@ -361,11 +374,15 @@ public final class ScreenView extends View {
             labelV4(c, "UP NEXT", RX, 347, 0.12f);
             fitText(c, sn.nextTitle, RX, 370, 18, hanken500, LIGHT, RW);
         }
-        drawUpdateV4(c, RX, 416, RW - 150);
-        String credit = "made by @malbers";
-        float cw = measure(credit, 13, hanken400);
-        text(c, credit, vw - 16 - cw, 443, 13, hanken400, 0x80F4F1EC, cw + 2);
-        hit(vw - 16 - cw - 8, 416, cw + 16, 44, actions::openChannel);
+        // 1.0.13.1: the update pill gets the whole cover width and the credit steps aside while it shows; with the
+        // credit's room reserved the label cut to "Updat..." (Michael 2026-11-22). The credit returns after updating.
+        if (update != null) drawUpdateV4(c, RX, 416, RW);
+        else {
+            String credit = "made by @malbers";
+            float cw = measure(credit, 13, hanken400);
+            text(c, credit, vw - 16 - cw, 443, 13, hanken400, 0x80F4F1EC, cw + 2);
+            hit(vw - 16 - cw - 8, 416, cw + 16, 44, actions::openChannel);
+        }
 
         // ---- top bar
         drawNav(c, t);
@@ -403,9 +420,13 @@ public final class ScreenView extends View {
 
     /** "44.1 kHz · 16-bit · 2 ch" / "2.82 MHz · 1-bit · 5 ch"; empty when the player reports no rate. */
     private static String qualityLine(Track t) {
-        if (t.externalApp) return "by the app";
+        if (t.externalApp) {
+            // 1.0.14: "96 kHz · per Apple Music" (rate only when EOS is on, so it is the track's and not Android's)
+            String r = t.eosOn() && t.appRateHz != null ? Track.rateText(t.appRateHz, false) + " · " : "";
+            return t.appTier == null && r.isEmpty() ? "by the app" : r + "per " + (t.service == null ? "the app" : t.service);
+        }
         if (t.rateHz == null) return "";
-        String dc = Track.depthChannels(t.bits, t.channels);
+        String dc = t.depthChannels();
         return Track.rateText(t.rateHz, t.dsd) + (dc.isEmpty() ? "" : " · " + dc);
     }
 
@@ -415,9 +436,13 @@ public final class ScreenView extends View {
         float sz = 36;
         tp.setTextSize(sz * s);
         while (tp.measureText(title) > w * s && sz > 28) { sz -= 1; tp.setTextSize(sz * s); }
-        c.drawText(TextUtils.ellipsize(title, tp, w * s, TextUtils.TruncateAt.END).toString(), X(x), Y(baseline), tp);
         tp.setLetterSpacing(0);
+        // fix4 (Michael 2026-11-23): still too long at 28 = the same gentle scroll as the full-screen view, not an ellipsis
+        lastWake = 0;
+        sAnim = marquee(c, sMarquee, new String[]{title}, new int[]{LIGHT}, hanken600, sz, -0.01f, x, x + w, baseline);
+        sWakeAt = lastWake;
     }
+    private long sWakeAt;
 
     private void labelV4(Canvas c, String text, float x, float baseline, float spacing) {
         tp.setTypeface(hanken600); tp.setTextSize(13 * s); tp.setColor(ACCENT); tp.setLetterSpacing(spacing);
@@ -472,20 +497,24 @@ public final class ScreenView extends View {
         int changed = t.badge == Track.Badge.EQ_ACTIVE || t.eosOffMaybe() ? 1   // 1.0.12.9: "EOS off?" in amber
             : t.badge == Track.Badge.RESAMPLED || t.badge == Track.Badge.DSD_TO_PCM ? 2 : -1;
         float gut = 24, nodeW = (w - 32 - 3 * gut) / 4f, nx = x + 16;
+        // 1.0.14: a 4th PROCESSING line (EVS) moves every column up a little so it fits in the same box
+        boolean four = n[1].length > 4;
+        float yl = four ? 20 : 25, yv = four ? 44 : 51, y1 = four ? 62 : 72, y2 = four ? 79 : 92, y3 = 96;
         for (int i = 0; i < 4; i++) {
             boolean pending = (paused || checking) && i >= 2;
             int valCol = i == changed ? AMBER : LIGHT;
             int subCol = i == changed ? AMBER : (changed >= 0 && i > changed) || checking || (t.externalApp && (i == 0 || !t.eosOn())) ? NEUTRAL_SUB : GREEN;   // 1.0.12.11: app source sub-line is grey
             int alpha = paused && i >= 2 ? 0x73 : checking && i >= 2 ? 0x66 : 0xFF;
-            labelV4(c, n[i][0], nx, y + 12 + 13, 0.1f);
+            labelV4(c, n[i][0], nx, y + yl, 0.1f);
             String val = paused && i >= 2 ? "…" : n[i][1];
-            fitText(c, val, nx, y + 51, 20, mono500, withAlpha(valCol, alpha), nodeW);
+            fitText(c, val, nx, y + yv, 20, mono500, withAlpha(valCol, alpha), nodeW);
             if (!(paused && i >= 2)) {
-                if (!n[i][2].isEmpty()) fitText(c, n[i][2], nx, y + 72, 14, mono400, withAlpha(subCol, alpha), nodeW);
-                if (!n[i][3].isEmpty()) fitText(c, n[i][3], nx, y + 92, 14, mono400, withAlpha(subCol, alpha), nodeW);
+                if (!n[i][2].isEmpty()) fitText(c, n[i][2], nx, y + y1, 14, mono400, withAlpha(subCol, alpha), nodeW);
+                if (!n[i][3].isEmpty()) fitText(c, n[i][3], nx, y + y2, 14, mono400, withAlpha(subCol, alpha), nodeW);
+                if (n[i].length > 4 && !n[i][4].isEmpty()) fitText(c, n[i][4], nx, y + y3, 14, mono400, withAlpha(subCol, alpha), nodeW);
             }
             nx += nodeW;
-            if (i < 3) { drawArrow(c, nx + 5, y + 24 + 12, 0x52F4F1EC); nx += gut; }
+            if (i < 3) { drawArrow(c, nx + 5, y + (four ? 31 : 36), 0x52F4F1EC); nx += gut; }
         }
     }
 
@@ -494,16 +523,35 @@ public final class ScreenView extends View {
         return (col & 0x00FFFFFF) | (a << 24);
     }
 
+    /**
+     * 1.0.14 (Michael 2026-11-25): PROCESSING leads with whatever is ON, so the thing changing the music is the
+     * headline ("EVS on"), not "EQ off". Priority EQ, EVS, DSP, Sub; the rest follow in their usual order. Nothing on:
+     * unchanged ("EQ off" first). "EQ skipped" (DSD, over 192 kHz) counts as off. EVS only on firmware that reports it.
+     */
+    static String[] processing(Track t) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        lines.add(t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off");
+        lines.add(t.dsp ? "DSP on" : "DSP off");
+        lines.add(t.sub ? "Sub on" : "Sub off");
+        if (t.styleKnown) lines.add(t.style ? "EVS on" : "EVS off");
+        String lead = t.eqApplied() ? "EQ on" : t.style ? "EVS on" : t.dsp ? "DSP on" : t.sub ? "Sub on" : null;
+        if (lead != null && lines.remove(lead)) lines.add(0, lead);
+        lines.add(0, "PROCESSING");
+        return lines.toArray(new String[0]);
+    }
+
     private String[][] nodesV4(Track t) {
         String src, s1, s2;
         if (t.dsd) {
             src = t.container == null ? "DSD" : t.container;
-            s1 = Track.dsdName(t.rateHz);
-            s2 = Track.depthChannels(1.0, t.channels);
+            s1 = t.dstName() != null ? t.dstName() : Track.dsdName(t.rateHz);   // 1.0.14: DST64 like the stock screen
+            String chs = t.chText();
+            s2 = chs == null ? "1-bit" : "1-bit · " + chs;
         } else {
             src = t.container != null ? t.container : t.codec != null ? t.codec : sourceChip(t);
-            s1 = t.externalApp ? "not reported" : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
+            s1 = t.externalApp ? (t.appTier != null ? t.appTier : "not reported") : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
             s2 = t.bits == null ? (t.lossy && t.bitrate != null ? t.bitrate : "") : Math.round(t.bits) + "-bit";
+            if (t.externalApp) s2 = t.eosOn() && t.appRateHz != null ? Track.rateText(t.appRateHz, false) : "";
         }
         String out, o1;
         if (t.outCodec == null) { out = "…"; o1 = ""; }
@@ -512,7 +560,7 @@ public final class ScreenView extends View {
         return new String[][]{
             {"SOURCE", src, s1, s2},
             t.externalApp ? new String[]{"PROCESSING", "Android", t.eosOn() ? "EOS on" : t.eosOffMaybe() ? "EOS off?" : "", ""}
-                : new String[]{"PROCESSING", t.eq ? (t.eqApplied() ? "EQ on" : "EQ skipped") : "EQ off", t.dsp ? "DSP on" : "DSP off", t.sub ? "Sub on" : "Sub off"},
+                : processing(t),
             {"OUTPUT", out, o1, ""},
             {"PORT", t.iface == null ? "…" : t.iface, t.iface != null && t.analogPort() ? "analog out" : "", ""},
         };
@@ -707,8 +755,9 @@ public final class ScreenView extends View {
         else {
             // never N/A on Simple: no format reported -> the source's own name, e.g. "Apple Music"
             src = t.container != null ? t.container : t.codec != null ? t.codec : sourceChip(t);
-            s1 = t.externalApp ? "not reported" : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
+            s1 = t.externalApp ? (t.appTier != null ? t.appTier : "not reported") : t.rateHz == null ? "" : Track.rateText(t.rateHz, false);
             s2 = t.bits == null ? (t.lossy && t.bitrate != null ? t.bitrate : "") : Math.round(t.bits) + "-bit";
+            if (t.externalApp) s2 = t.eosOn() && t.appRateHz != null ? Track.rateText(t.appRateHz, false) : "";
         }
         String out, o1;
         if (t.outCodec == null) { out = "…"; o1 = ""; }
@@ -732,7 +781,7 @@ public final class ScreenView extends View {
         if (quality != null) tiles.add(new String[]{"QUALITY", quality, ""});
         // 1.0.12: channels on the second line, always (2 ch too, as the stock player shows it). Pierre C. 2026-11-20:
         // a 5-channel DSF and a 5.1 ALAC showed no channel count on Simple.
-        if (t.rateHz != null) tiles.add(new String[]{"RATE / DEPTH", Track.rateText(t.rateHz, t.dsd), Track.depthChannels(t.bits, t.channels)});
+        if (t.rateHz != null) tiles.add(new String[]{"RATE / DEPTH", Track.rateText(t.rateHz, t.dsd), t.depthChannels()});
         // 1.0.8: same units as the file-average line ("1.75 Mbps", not "1,748,591 bps"), seen side by side 2026-11-17
         if (sn.exactBps != null) tiles.add(new String[]{"BITRATE", Track.bpsText(sn.exactBps), "file average"});
         else if (t.bitrateBps != null) tiles.add(new String[]{"BITRATE", Track.bpsText(t.bitrateBps), "file average"});
@@ -1126,7 +1175,7 @@ public final class ScreenView extends View {
         ry = row1(c, "Codec", t.codec != null ? t.codec : (t.dsd ? Track.dsdName(t.rateHz) : t.container), ix, ry, iw);
         ry = row1(c, "Sample rate", t.rateHz == null ? null : Track.rateText(t.rateHz, t.dsd), ix, ry, iw);
         ry = row1(c, "Bit depth", t.bits == null ? null : Math.round(t.bits) + "-bit", ix, ry, iw);
-        ry = row1(c, "Channels", t.channels == null ? null : String.valueOf(Math.round(t.channels)), ix, ry, iw);
+        ry = row1(c, "Channels", t.chText() == null ? null : t.chText().replace(" ch", ""), ix, ry, iw);
         ry = row1(c, "Bitrate", t.bitrate, ix, ry, iw);
         ry = divider(c, ix, ry, iw);
         ry = row1(c, "Out codec", t.outCodec, ix, ry, iw);
@@ -1328,6 +1377,16 @@ public final class ScreenView extends View {
         // virtual (zoomed) coordinates: 0..contentW() wide, y from the top of the scrolled content
         final int n = columns();
         final float gap = 8, fullW = contentW(), colW = (fullW - (n - 1) * gap) / n, viewH = contentH();
+        // fix10 (Michael): "Measure again" clears a long list, so jump back to the top of Dynamic range first
+        if (drScrollTop) {
+            drScrollTop = false;
+            float ty = 0;
+            for (Section sec : sections) {
+                if (sec.kind != FULL) continue;
+                if ("Dynamic range".equals(sec.title)) { if (scroll[page] > ty) scroll[page] = ty; break; }
+                ty += sectionHeight(sec, fullW) + gap;
+            }
+        }
         float off = scroll[page];
         beginContent(c);
         float fy = 0;
@@ -1539,15 +1598,22 @@ public final class ScreenView extends View {
     private Section drSection(Track t) {
         Section d = new Section("Dynamic range", FULL);
         d.rowsFirst = true;   // 1.0.12.13 (Michael): the results first, the explanation last
+        if (drDsd) {   // 1.0.14 (Pierre C.): was the misleading "files on the Eversolo only" message
+            d.wrapSize = 13;   // fix8: wrapped, a plain text line was cut off (Michael)
+            d.wrap(null, "DR isn't available for DSD files yet: Android has no DSD decoder to read them with.");
+            return d;
+        }
         if (!drLocal) {
-            d.text.add("For files on the Eversolo only (not streams, casts or apps).");
+            d.wrapSize = 13;
+            d.wrap(null, "For files on the Eversolo only (not streams, casts or apps).");
             return d;
         }
         if (!filesAllowed || !filesOn) {
-            d.text.add("Needs File access (Settings), to read the music file.");
+            d.wrapSize = 13;
+            d.wrap(null, "Needs File access (Settings), to read the music file.");
             return d;
         }
-        String tv = drTrackRunning ? "measuring…" : drTrack == null ? "not measured"
+        String tv = drTrackRunning ? "measuring…" : drTrack == null ? (drWhy != null ? "can't measure: " + drWhy : "not measured")
             : String.format(Locale.US, "DR%d   peak %.1f dB · rms %.1f dB", drTrack.rounded(), drTrack.peakDb, drTrack.rmsDb);
         d.row("This track", tv);
         DrScan.Album a = drAlbum;
@@ -1555,17 +1621,24 @@ public final class ScreenView extends View {
         if (a == null) av = "not measured";
         else if (a.running) av = "measuring " + Math.min(a.done + 1, a.total) + " of " + a.total + "…";
         else if (a.value() != null) av = "DR" + a.value() + "   (" + a.items.size() + " tracks" + (a.failed > 0 ? ", " + a.failed + " unreadable" : "") + ")";
+        // fix14 (Pierre C.'s screenshot: "4 of 4 tracks measured" with nothing below, all four were Dolby)
+        else if (a.items.isEmpty() && a.failed > 0 && a.done >= a.total)
+            av = "can't measure: " + (a.failWhy != null ? a.failWhy : "no track could be decoded")
+                + " (" + a.failed + (a.failed == 1 ? " track)" : " tracks)");
         else if (a.done > 0) av = a.done + " of " + a.total + " tracks measured";
         else av = "not measured (" + a.total + " tracks)";
         d.row("Album", av);
-        if (a != null && a.items.size() > 1) {
+        if (a != null && (a.items.size() > 1 || !a.failedNames.isEmpty())) {
             List<String> names = new ArrayList<>();
             for (DrScan.Item i : a.items) names.add(i.name);
+            names.addAll(a.failedNames);
             List<String> shortN = DrScan.shortNames(names);
             for (int k = 0; k < a.items.size(); k++) {
                 DrScan.Item i = a.items.get(k);
                 d.text.add(shortN.get(k) + "\t" + String.format(Locale.US, "DR%d · %.1f / %.1f dB", i.rounded(), i.peakDb, i.rmsDb));
             }
+            // 1.0.14 (Pierre C.): files that couldn't be read are listed too, instead of silently missing
+            for (int k = 0; k < a.failedNames.size(); k++) d.text.add(shortN.get(a.items.size() + k) + "\tcan't read");
         }
         // 1.0.12.15 (Michael): explain peak and RMS too, smaller text
         d.wrapSize = 10;
@@ -1577,8 +1650,11 @@ public final class ScreenView extends View {
         d.wrap(null, "Same method as foobar's DR Meter.");
         if (drTrackRunning || (a != null && a.running)) d.button("Cancel", actions::cancelDr);
         else {
-            if (drTrack == null) d.button("Measure track", actions::measureDrTrack);
-            d.button(a != null && a.value() != null ? "Measure again" : "Measure album", actions::measureDrAlbum);
+            if (drTrack == null && drWhy == null) d.button("Measure track", actions::measureDrTrack);
+            d.button(a != null && a.value() != null ? "Measure again" : "Measure album",
+                () -> { drScrollTop = true; actions.measureDrAlbum(); });
+            // 1.0.14 (Pierre C.): a foobar-style text log in Download, to compare with foobar / the DR database
+            if (a != null && !a.items.isEmpty()) d.button("Save to Download", actions::exportDr);
         }
         return d;
     }
@@ -1842,6 +1918,17 @@ public final class ScreenView extends View {
      * deep red frame taken from the art, not from the white edge, so the most saturated colours weigh most; a
      * colourless cover falls back to its average. Kept mid-dark so the frame reads as an edge, not a second picture.
      */
+    /** 1.0.14: three stops of one hue for the lyrics background; 0 (no art) = a neutral warm grey. */
+    static int[] lyricGradient(int hue) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(hue == 0 ? 0xFF2A2725 : hue, hsv);
+        float s = Math.min(hsv[1], 0.65f);   // keep it calm, never neon
+        return new int[]{
+            Color.HSVToColor(new float[]{hsv[0], s, 0.42f}),
+            Color.HSVToColor(new float[]{hsv[0], s, 0.20f}),
+            Color.HSVToColor(new float[]{hsv[0], s * 0.8f, 0.07f})};
+    }
+
     private int frameColour(Bitmap b) {
         Integer known = frameColours.get(b);
         if (known != null) return known;
@@ -1872,7 +1959,12 @@ public final class ScreenView extends View {
     private void drawViewer(Canvas c, Poller.Snapshot sn) {
         long now = System.currentTimeMillis();
         int n = viewer.size();
-        if (n > 1 && now >= vNextAt) viewerStep(1);
+        // fix16 (Pierre C., 2026-11-24): once lyrics are switched on they stay on, and a track with no .lrc (instrumental,
+        // a name that doesn't match, an ISO) says "No lyrics" like the Eversolo apps do, instead of silently showing art.
+        boolean lyricsShown = lyricsOn && sn != null && sn.track != null;
+        // 1.0.14 (Pierre C.): no flipping underneath lyrics, the page you were on stays when lyrics close
+        if (n > 1 && now >= vNextAt && !lyricsShown) viewerStep(1);
+        if (lyricsShown) vNextAt = now + slideMs();
         Bitmap b = viewer.get(vIdx);
         if (b == null && viewer.failed(vIdx) && n > 1) { viewerStep(1); b = viewer.get(vIdx); }
 
@@ -1895,40 +1987,62 @@ public final class ScreenView extends View {
         }
 
         // 1.0.12: lyrics over the dimmed art, and the LYRICS button (top left) when the track has an .lrc
-        if (lyrics != null) {
-            if (lyricsOn && sn != null && sn.track != null) {
-                p.reset(); p.setColor(0xC0000000);
-                c.drawRect(X(0), Y(0), X(vw), Y(bottom + 4), p);
-                drawLyrics(c, sn, top + 40, bottom - 10);
+        if (lyrics != null || lyricsOn) {
+            if (lyricsShown) {
+                // 1.0.14 (Pierre C. / Michael): lyrics sit on one calm colour taken from the album, not on pictures with
+                // changing contrast. The hue is picked once per viewer and never changes behind the text.
+                // 1.0.14 (Michael 2026-11-25, after Pierre C. found the blurred art busy): no picture at all behind
+                // lyrics, just a gradient in the album's own hue (the frame colour: its most saturated colours weigh
+                // most), lighter at the top and near-black at the bottom. Taken once per album, never changes.
+                if (lyricHue == 0 && b != null) lyricHue = frameColour(b);
+                RectF area = new RectF(X(0), Y(0), X(vw), Y(bottom + 4));
+                p.reset(); p.setAntiAlias(true);
+                p.setShader(new android.graphics.LinearGradient(0, area.top, 0, area.bottom,
+                    lyricGradient(lyricHue), new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP));
+                c.drawRect(area, p);
+                p.setShader(null);
+                if (lyrics != null) drawLyrics(c, sn, top + 40, bottom - 10);
+                else drawCentered(c, "No lyrics", 0, (top + bottom) / 2 - 20, vw, 40, 28, hanken500, 0x99FFFFFF);
             }
-            float bw = measure("LYRICS", 14, hanken600) + 28;
-            if (lyricsOn) roundRect(c, 20, 20, bw, 34, 17, LIGHT);
-            else { roundRect(c, 20, 20, bw, 34, 17, 0xA6000000); strokeRect(c, 20, 20, bw, 34, 17, 0x59FFFFFF, 1); }
-            drawCentered(c, "LYRICS", 20, 20, bw, 34, 14, hanken600, lyricsOn ? DARK_TEXT : LIGHT);
+            // 1.0.14 (Pierre C. #843): the button names where a tap TAKES you. With lyrics up it reads COVER, so
+            // "No lyrics" never sits next to a "LYRICS" button and the way back to the art is obvious.
+            String btn = lyricsOn ? "COVER" : "LYRICS";
+            float bw = measure(btn, 14, hanken600) + 28;
+            roundRect(c, 20, 20, bw, 34, 17, 0xA6000000); strokeRect(c, 20, 20, bw, 34, 17, 0x59FFFFFF, 1);
+            drawCentered(c, btn, 20, 20, bw, 34, 14, hanken600, LIGHT);
             hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; invalidate(); });
         }
 
-        // "3 / 12 · Scan/03.jpg" for 3 s after each change
-        if (n > 1 && now - vChangedAt < 3000) {
-            String lab = viewer.label(vIdx);
-            String cnt = (vIdx + 1) + " / " + n + (lab != null ? "  ·  " + lab : "");
-            float cw = Math.min(measure(cnt, 14, mono400) + 24, vw - 40);
-            roundRect(c, vw - 20 - cw, 20, cw, 30, 15, 0xA6000000);
-            text(c, cnt, vw - 20 - cw + 12, 40, 14, mono400, 0xD9FFFFFF, cw - 24);
-        }
-
-        // 1.0.12: page dots, so it is obvious there is more to swipe (Michael 2026-11-20); a counter past 12 pictures
-        if (n > 1) {
+        // 1.0.13.1: "3 / 12 · Scan/03.jpg" moved OFF the picture into the dot row (Václav H. 2026-11-23: the top label
+        // disturbed the booklet). It cross-fades with the dots: in over LABEL_IN, holds, out over LABEL_OUT (Michael: "soft").
+        vAnim = false;
+        if (n > 1 && !lyricsShown) {   // 1.0.14: the dots belong to the pictures, which are hidden under lyrics
             float dy = 418;
-            if (n <= 12) {
-                float gap = 14, dx = vw / 2 - (n - 1) * gap / 2;
-                p.reset(); p.setAntiAlias(true);
-                for (int i = 0; i < n; i++) {
-                    p.setColor(i == vIdx ? LIGHT : 0x4DFFFFFF);
-                    c.drawCircle(X(dx + i * gap), Y(dy), (i == vIdx ? 4f : 3f) * s, p);
+            long since = now - vChangedAt;
+            float la = n > 12 ? 1f   // counter mode: the label just stays (Michael: fading back only drops the file name)
+                    : since < LABEL_IN ? since / (float) LABEL_IN
+                    : since < LABEL_MS - LABEL_OUT ? 1f
+                    : since < LABEL_MS ? (LABEL_MS - since) / (float) LABEL_OUT : 0f;
+            if (la > 0f && n <= 12) vAnim = true;
+            float da = 1f - la;
+            if (da > 0f) {
+                if (n <= 12) {
+                    float gap = 14, dx = vw / 2 - (n - 1) * gap / 2;
+                    p.reset(); p.setAntiAlias(true);
+                    for (int i = 0; i < n; i++) {
+                        p.setColor(alpha(i == vIdx ? LIGHT : 0x4DFFFFFF, da));
+                        c.drawCircle(X(dx + i * gap), Y(dy), (i == vIdx ? 4f : 3f) * s, p);
+                    }
+                } else {
+                    drawCentered(c, (vIdx + 1) + " / " + n, 0, dy - 9, vw, 18, 13, mono400, alpha(0xB3FFFFFF, da));
                 }
-            } else {
-                drawCentered(c, (vIdx + 1) + " / " + n, 0, dy - 9, vw, 18, 13, mono400, 0xB3FFFFFF);
+            }
+            if (la > 0f) {
+                String lab = viewer.label(vIdx);
+                String cnt = (vIdx + 1) + " / " + n + (lab != null ? "  ·  " + lab : "");
+                tp.setTypeface(mono400); tp.setTextSize(13 * s);
+                String fit = TextUtils.ellipsize(cnt, tp, (vw - 80) * s, TextUtils.TruncateAt.MIDDLE).toString();
+                drawCentered(c, fit, 0, dy - 9, vw, 18, 13, mono400, alpha(0xD9FFFFFF, la));
             }
         }
 
@@ -1947,17 +2061,148 @@ public final class ScreenView extends View {
             text(c, q, lx, y + 21, 16, hanken600, ACCENT, 140);
             lx += Math.min(140, measure(q, 16, hanken600)) + 12;
         }
-        String fmt = t.formatShort == null ? "" : t.formatShort;
-        if (t.channels != null && t.channels >= 1) fmt = (fmt.isEmpty() ? "" : fmt + " · ") + Math.round(t.channels) + " ch";
-        if (!fmt.isEmpty()) fmt += "   ";
-        String tm = t.durationMs > 0 ? mss(position(sn)) + " / " + mss(t.durationMs) : t.state == 3 ? "" : "Paused";
-        String left = fmt + tm;
-        text(c, left, lx, y + 21, 16, mono400, 0xD9FFFFFF, 400);
-        lx += Math.min(400, measure(left, 16, mono400)) + 24;
-        String ta = (t.title == null ? "" : t.title) + (t.artist == null || t.artist.isEmpty() ? "" : "  ·  " + t.artist);
-        float maxW = vw - 20 - lx;
-        float tw = Math.min(maxW, measure(ta, 17, hanken500));
-        if (maxW > 40) text(c, ta, vw - 20 - tw, y + 21, 17, hanken500, LIGHT, maxW);
+        // 1.0.13.1 (Michael 2026-11-23): tighter line, the title gets the room. Format in the proportional font, only
+        // the time keeps fixed-width digits; thin separators. If the title still doesn't fit, the stats give way:
+        // stereo "2 ch" first, then the total time (elapsed only). Badge, quality word and rate always stay.
+        String base = t.formatShort == null ? "" : t.formatShort;
+        int ch = t.channels != null && t.channels >= 1 ? (int) Math.round(t.channels) : 0;
+        String title = t.title == null ? "" : t.title;
+        String artist = t.artist == null || t.artist.isEmpty() ? "" : "  ·  " + t.artist;
+        float titleW = measure(title, 17, hanken500) + measure(artist, 17, hanken500);
+        long pos = position(sn);
+        String tmFull = t.durationMs > 0 ? mss(pos) + " / " + mss(t.durationMs) : t.state == 3 ? "" : "Paused";
+        String tmShort = t.durationMs > 0 ? mss(pos) : tmFull;
+        String fmt = base, tm = tmFull;
+        for (int step = 0; step < 3; step++) {
+            fmt = ch >= 1 && (ch != 2 || t.channelsSecond != null || step == 0) ? (base.isEmpty() ? "" : base + " · ") + t.chText() : base;
+            tm = step < 2 ? tmFull : tmShort;
+            float used = lx + measure(fmt, 16, hanken500) + (fmt.isEmpty() ? 0 : 14) + measure(tm, 16, mono400) + 20;
+            if (titleW <= vw - 20 - used) break;
+        }
+        if (!fmt.isEmpty()) {
+            text(c, fmt, lx, y + 21, 16, hanken500, 0xD9FFFFFF, 400);
+            lx += Math.min(400, measure(fmt, 16, hanken500)) + 14;
+        }
+        if (!tm.isEmpty()) {
+            text(c, tm, lx, y + 21, 16, mono400, 0xB3FFFFFF, 200);
+            lx += Math.min(200, measure(tm, 16, mono400)) + 20;
+        }
+        drawTitleLine(c, title, artist, lx, vw - 20, y + 21);
+    }
+
+    // 1.0.13.1: the viewer's title scrolls gently only when it doesn't fit (Michael: "subtly so, not annoying").
+    private static final long LABEL_MS = 3700, LABEL_IN = 600, LABEL_OUT = 800;   // fix3: slower fades (Michael)
+    private static final float TITLE_SPEED = 25f;          // canvas units per second; the one knob to tune on the A6
+    // fix4 (Michael 2026-11-23): first scroll 3 s after the track starts, then a long REST between repeats, so it
+    // doesn't keep moving ("you don't need to constantly see it scroll, maybe every 5 or even 10 seconds").
+    private static final long TITLE_HOLD_FIRST = 3000, TITLE_REST = 8000, TITLE_HOLD_END = 2000, TITLE_FADE = 300;
+    private boolean vAnim;
+
+    /** One scrolling slot (viewer stats line, Simple title): which text it is showing and when that started. */
+    private static final class Marquee { String key; long start; Bitmap bmp; String bmpKey; }
+    private final Marquee vMarquee = new Marquee(), sMarquee = new Marquee();
+    private boolean sAnim;   // Simple: the title is moving, ask for vsync frames
+
+    private static int alpha(int col, float a) {
+        int al = Math.round(((col >>> 24) & 0xFF) * Math.max(0f, Math.min(1f, a)));
+        return (al << 24) | (col & 0xFFFFFF);
+    }
+
+    private void drawTitleLine(Canvas c, String title, String artist, float x0, float x1, float baseline) {
+        if (x1 - x0 < 40) return;
+        if (marquee(c, vMarquee, new String[]{title, artist}, new int[]{LIGHT, 0xB3FFFFFF}, hanken500, 17, 0, x0, x1, baseline))
+            vAnim = true;   // resting phases need no frames: the viewer already redraws every 250 ms
+    }
+
+    /** Set by marquee(): when a resting title next starts moving (0 = never), so a still screen wakes for it. */
+    private long lastWake;
+
+    /**
+     * Draws the parts on one line from x0. If they fit: plain, returns false. If not: holds, scrolls gently to the
+     * end, holds, fades back to the start, rests, repeats. Soft edges are an alpha mask, so any background works.
+     * Returns true while the text is MOVING or fading (the caller asks for vsync frames then).
+     */
+    private boolean marquee(Canvas c, Marquee m, String[] parts, int[] cols, Typeface tf, float size, float spacing,
+                            float x0, float x1, float baseline) {
+        float avail = x1 - x0;
+        tp.setTypeface(tf); tp.setTextSize(size * s); tp.setLetterSpacing(spacing);
+        float[] w = new float[parts.length];
+        float total = 0;
+        for (int i = 0; i < parts.length; i++) { w[i] = parts[i] == null ? 0 : tp.measureText(parts[i]) / s; total += w[i]; }
+        if (total <= avail) {
+            float x = x0;
+            for (int i = 0; i < parts.length; i++) {
+                if (parts[i] == null || parts[i].isEmpty()) continue;
+                tp.setColor(cols[i]);
+                c.drawText(parts[i], X(x), Y(baseline), tp);
+                x += w[i];
+            }
+            tp.setLetterSpacing(0);
+            m.key = null;
+            lastWake = 0;
+            return false;
+        }
+        StringBuilder kb = new StringBuilder();
+        for (String pt : parts) kb.append(pt).append('|');
+        String key = kb.toString();
+        // fix5: animation frame time (when this frame is shown), not the wall clock at draw time: even steps
+        long now = android.view.animation.AnimationUtils.currentAnimationTimeMillis();
+        if (!key.equals(m.key)) { m.key = key; m.start = now; }
+        float dist = total - avail + 8;
+        long scrollMs = (long) (dist / TITLE_SPEED * 1000);
+        long first = TITLE_HOLD_FIRST + scrollMs + TITLE_HOLD_END + TITLE_FADE;
+        long e = now - m.start, ph, hold;
+        boolean repeat = e >= first;
+        if (!repeat) { ph = e; hold = TITLE_HOLD_FIRST; }
+        else { ph = (e - first) % (TITLE_REST + scrollMs + TITLE_HOLD_END + TITLE_FADE); hold = TITLE_REST; }
+        float off, a = 1f;
+        boolean moving;
+        long wall = System.currentTimeMillis();
+        if (ph < hold) {
+            off = 0;
+            moving = repeat && ph < TITLE_FADE;
+            if (moving) a = ph / (float) TITLE_FADE;
+            lastWake = wall + (hold - ph);
+        } else if (ph < hold + scrollMs) { off = (ph - hold) / 1000f * TITLE_SPEED; moving = true; }
+        else if (ph < hold + scrollMs + TITLE_HOLD_END) { off = dist; moving = false; lastWake = wall + (hold + scrollMs + TITLE_HOLD_END - ph); }
+        else { off = dist; a = 1f - (ph - hold - scrollMs - TITLE_HOLD_END) / (float) TITLE_FADE; moving = true; }
+
+        float top = baseline - size * 1.4f, bot = baseline + size * 0.5f;
+        // fix5: the text is drawn ONCE into a bitmap per title (and size); each frame slides it with one draw call.
+        // fix4 made a fresh off-screen layer every frame for the soft edges, which is what made both screens choppy.
+        String bk = key + size + "|" + s;
+        if (m.bmp == null || !bk.equals(m.bmpKey)) {
+            if (m.bmp != null) m.bmp.recycle();
+            int bw = (int) Math.ceil(total * s) + 4, bh = (int) Math.ceil((bot - top) * s);
+            m.bmp = Bitmap.createBitmap(Math.max(1, bw), Math.max(1, bh), Bitmap.Config.ARGB_8888);
+            Canvas bc = new Canvas(m.bmp);
+            tp.setSubpixelText(true);
+            float x = 2;
+            for (int i = 0; i < parts.length; i++) {
+                if (parts[i] == null || parts[i].isEmpty()) continue;
+                tp.setColor(cols[i]);
+                bc.drawText(parts[i], x, (baseline - top) * s, tp);
+                x += w[i] * s;
+            }
+            tp.setSubpixelText(false);
+            m.bmpKey = bk;
+        }
+        tp.setLetterSpacing(0);
+        BitmapShader bs = new BitmapShader(m.bmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        Matrix mx = new Matrix();
+        mx.setTranslate(X(x0 - off) - 2, Y(top));
+        bs.setLocalMatrix(mx);
+        // soft edges in the same draw: a mask over the slot (DST_IN), left edge only once it has moved
+        float fe = 18 / avail;
+        int lc = off > 0.5f ? 0x00000000 : 0xFF000000, rc = off < dist - 0.5f ? 0x00000000 : 0xFF000000;
+        Shader mask = new android.graphics.LinearGradient(X(x0), 0, X(x1), 0,
+                new int[]{lc, 0xFF000000, 0xFF000000, rc}, new float[]{0f, fe, 1f - fe, 1f}, Shader.TileMode.CLAMP);
+        p.reset(); p.setAntiAlias(true); p.setFilterBitmap(true);
+        p.setShader(new android.graphics.ComposeShader(bs, mask, android.graphics.PorterDuff.Mode.DST_IN));
+        p.setAlpha(Math.round(255 * Math.max(0f, Math.min(1f, a))));
+        c.drawRect(X(x0), Y(top), X(x1), Y(bot), p);
+        p.setShader(null);
+        return moving;
     }
 
     /**
@@ -1983,13 +2228,13 @@ public final class ScreenView extends View {
             for (int i = cur - 1; i >= Math.max(0, cur - 2); i--) {
                 by -= 32;
                 if (by < top) break;
-                drawCentered(c, lyrics.lines.get(i).text, cx, by, w, 32, 22, hanken500, 0x73FFFFFF);
+                drawCentered(c, lyrics.lines.get(i).text, cx, by, w, 32, 22, hanken500, 0x59FFFFFF);
             }
             // after
             float ay = mid + ch / 2 + 8;
             for (int i = cur + 1; i <= Math.min(lyrics.lines.size() - 1, cur + 3); i++) {
                 if (ay + 32 > bottom) break;
-                drawCentered(c, lyrics.lines.get(i).text, cx, ay, w, 32, 22, hanken500, i == cur + 1 ? 0xB3FFFFFF : 0x73FFFFFF);
+                drawCentered(c, lyrics.lines.get(i).text, cx, ay, w, 32, 22, hanken500, i == cur + 1 ? 0x99FFFFFF : 0x59FFFFFF);
                 ay += 32;
             }
         } else {
@@ -2151,17 +2396,19 @@ public final class ScreenView extends View {
     // 1.0.12.12: Dynamic Range for the playing track and its album folder (set by MainActivity)
     private DrScan.Item drTrack;
     private DrScan.Album drAlbum;
-    private boolean drTrackRunning, drLocal;
-    public void setDr(boolean local, DrScan.Item track, boolean trackRunning, DrScan.Album album) {
-        drLocal = local; drTrack = track; drTrackRunning = trackRunning; drAlbum = album; invalidate();
+    private boolean drTrackRunning, drLocal, drDsd;
+    private boolean drScrollTop;   // fix10: set by Measure album / again, consumed by the next Detail draw
+    private String drWhy;
+    public void setDr(boolean local, boolean dsd, DrScan.Item track, String why, boolean trackRunning, DrScan.Album album) {
+        drLocal = local; drDsd = dsd; drTrack = track; drWhy = why; drTrackRunning = trackRunning; drAlbum = album; invalidate();
     }
     private int slideSecs = 10;
-    static final int[] SLIDE_STEPS = { 5, 10, 20, 30, 60 };
+    static final int[] SLIDE_STEPS = { 0, 5, 10, 20, 30, 60 };   // 1.0.14 (Pierre C.): 0 = Off, the slideshow stays put
 
     private boolean filesOn = true;
     public void setFilesAllowed(boolean granted, boolean on) { filesAllowed = granted; filesOn = on; invalidate(); }
     public void setSlideSecs(int secs) { slideSecs = secs; invalidate(); }
-    long slideMs() { return slideSecs * 1000L; }
+    long slideMs() { return slideSecs <= 0 ? 1_000_000_000_000L : slideSecs * 1000L; }   // Off: never flips on its own
     public boolean feedbackOpen() { return onSettings() && fbOpen; }
     public void openFeedback() { if (!fbOpen) { fbOpen = true; fbAt = System.currentTimeMillis(); invalidate(); } }
     public void closeFeedback() { if (fbOpen) { fbOpen = false; fbAt = System.currentTimeMillis(); invalidate(); } }
@@ -2311,6 +2558,12 @@ public final class ScreenView extends View {
         } else {
             button(c, rl, c2 + colW - rbw, rby, rbw, BTN_STROKE, LIGHT, live ? this::resetTapped : null);
         }
+        // 1.0.14: the public beta channel (Michael 2026-11-23). Off = stable releases only, as before.
+        ay += 76;
+        rowDivider(c, c2, ay, colW);
+        rowText(c, "Beta updates", betaOn ? "On: also offers test builds before they're released. Expect rough edges."
+            : "Off: stable releases only. On also offers test builds early.", c2, ay, 76, colW - 52 - 14);
+        drawSwitch(c, c2 + colW - 52, ay + 22, betaOn, live ? actions::toggleBeta : null);
     }
 
     /** Check for updates: idle, Checking… (pulsing blue dot), Up to date (green check), "x available" (tan, tap updates). */
@@ -2475,7 +2728,7 @@ public final class ScreenView extends View {
         boolean minEnd = i == 0, maxEnd = i == SLIDE_STEPS.length - 1;
         final int idx = i;
         stepBtn(c, x, y, false, minEnd, live ? () -> actions.setSlideSecs(SLIDE_STEPS[idx - 1]) : null);
-        String v = slideSecs + " s";
+        String v = slideSecs <= 0 ? "Off" : slideSecs + " s";
         drawCentered(c, v, x + 44, y, 60, 44, 16, mono500, LIGHT);
         stepBtn(c, x + 44 + 60, y, true, maxEnd, live ? () -> actions.setSlideSecs(SLIDE_STEPS[idx + 1]) : null);
     }

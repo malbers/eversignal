@@ -32,13 +32,19 @@ final class BadgeInfo {
                 warn(l);
                 break;
             case RESAMPLED:
-                l.add("Resampled: the player changes the sample rate on the way out.");
-                if (note != null) l.add(note);
-                l.add("Usually an upsampling setting or a fixed output rate.");
+                if ("Converted to DSD".equals(t.badgeText)) {
+                    l.add("Converted to DSD: the player turns your PCM music into DSD on the way out.");
+                    if (note != null) l.add(note);
+                    l.add("Usually the PCM Upsampling / DSD Conversion setting. Some people like the sound; it is not Bit-perfect.");
+                } else {
+                    l.add("Resampled: the player changes the sample rate on the way out.");
+                    if (note != null) l.add(note);
+                    l.add("Usually an upsampling setting or a fixed output rate.");
+                }
                 checklist(l, t);
                 break;
             case EQ_ACTIVE:
-                l.add((t.eqApplied() ? "EQ active" : "DSP active") + ": a sound effect is changing the samples.");
+                l.add((t.eqApplied() ? "EQ active" : t.style && !t.dsp ? "Sound style on" : "DSP active") + ": a sound effect is changing the samples.");
                 if (note != null) l.add(note);
                 checklist(l, t);
                 break;
@@ -51,6 +57,8 @@ final class BadgeInfo {
                 l.add("DSD native: the DSD file goes out as DSD, untouched.");
                 if (note != null) l.add(note);
                 l.add("This is DSD's version of Bit-perfect.");
+                if (t.dstName() != null) l.add(t.dstName() + ": the disc stores DSD with lossless (DST) compression. The player unpacks it, nothing is lost.");
+                if (t.channelsSecond != null) l.add(t.chText() + ": the disc has a stereo area and a " + Math.round(t.channelsSecond) + "-channel area. The SACD area setting picks which one plays; only HDMI carries multichannel.");
                 if (t.eqSkipped()) l.add(EQ_BYPASS);
                 break;
             case DSD_TO_PCM:
@@ -133,6 +141,11 @@ final class BadgeInfo {
         boolean eq = t.eqApplied();
         l.add(!eq && !t.dsp ? (t.eqSkipped() ? "•  OK: EQ bypassed, DSP off" : "•  OK: EQ and DSP off")
             : "•  Fix: turn " + (eq && t.dsp ? "EQ and DSP" : eq ? "EQ" : "DSP") + " off");
+        if (t.style) l.add("HDMI".equalsIgnoreCase(t.ifaceRaw)
+            // 1.0.14 (Michael, fw 1.6.40, 2026-11-25): with HDMI as the output the EVS switch won't turn off; it does
+            // after changing to another output. Reported to Eversolo (feedback list B12).
+            ? "•  Fix: set the sound style (EVS) to off. On HDMI the Eversolo won't let you: switch to another output, turn EVS off, then switch back"
+            : "•  Fix: set the sound style (EVS) to off");
     }
 
     /** Drawn in the warning colour by ScreenView.drawInfo (one sentence; the panel wraps it). */

@@ -29,7 +29,11 @@ final class M4aCodec {
         final String codec;      // "alac", "mp4a" (AAC), "ec-3", "ac-3", "ac-4", "flac", "opus"
         final Double channels;   // 1.0.12.8: from dec3/dac3, e.g. 6 for 5.1
         final boolean atmos;     // 1.0.12.8: E-AC-3 with the JOC (Atmos) extension flag
-        Info(String codec, Double channels, boolean atmos) { this.codec = codec; this.channels = channels; this.atmos = atmos; }
+        final Double rate;       // 1.0.14: ALAC only, from its config box (the player reports some ALAC as "0.001 kHz")
+        Info(String codec, Double channels, boolean atmos) { this(codec, channels, atmos, null); }
+        Info(String codec, Double channels, boolean atmos, Double rate) {
+            this.codec = codec; this.channels = channels; this.atmos = atmos; this.rate = rate;
+        }
     }
 
     /** The codec only ("alac", "mp4a", "ec-3", ...), or null. */
@@ -79,7 +83,13 @@ final class M4aCodec {
         long entrySize = raf.readInt() & 0xFFFFFFFFL;
         String fmt = fourcc(raf).toLowerCase(java.util.Locale.US);
         switch (fmt) {
-            case "alac": case "mp4a": case "ac-4": case "flac": case "opus": case "fla1":
+            case "alac": {
+                // ALACSpecificConfig after version/flags: frameLength 4, compatibleVersion 1, bitDepth 1, pb 1, mb 1,
+                // kb 1, numChannels 1, maxRun 2, maxFrameBytes 4, avgBitRate 4, sampleRate 4 (Apple ALAC spec)
+                long kids = entry + 36, kidsEnd = Math.min(end, entry + entrySize);
+                return new Info(fmt, null, false, alacRate(child(raf, kids, kidsEnd, "alac")));
+            }
+            case "mp4a": case "ac-4": case "flac": case "opus": case "fla1":
                 return new Info(fmt, null, false);
             case "ec-3": case "ac-3": {
                 // AudioSampleEntry: 8 header + 28 fields, then child boxes (dec3 / dac3)
@@ -109,6 +119,13 @@ final class M4aCodec {
             pos += size;
         }
         return null;
+    }
+
+    /** 1.0.14: the sample rate in an ALAC config box (body after the 8-byte header), or null. */
+    static Double alacRate(byte[] b) {
+        if (b == null || b.length < 28) return null;
+        long r = ((b[24] & 0xFFL) << 24) | ((b[25] & 0xFFL) << 16) | ((b[26] & 0xFFL) << 8) | (b[27] & 0xFFL);
+        return r >= 8000 && r <= 768000 ? (double) r : null;
     }
 
     /** acmod -> full-range channels (ETSI TS 102 366 table 4.3). */
