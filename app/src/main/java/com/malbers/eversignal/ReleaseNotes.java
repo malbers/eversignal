@@ -19,7 +19,10 @@ public final class ReleaseNotes {
     /** {version, date, bullet...}, newest first. Add the new release at the top on every version bump. */
     static final String[][] NOTES = {
         {"1.0.15", "2026-11-25",
-            "SACD ISOs, each with its own art! When several ISOs share a folder, every album now shows only its own cover (\"<ISO name>.jpg\") and its own extras from Scans/<ISO name>/, the layout AddMyCoverArt 1.1.2 saves. An ISO alone in its folder works as before."},
+            "SACD ISOs, each with its own art! When several ISOs share a folder, every album now shows only its own cover (\"<ISO name>.jpg\") and its own extras from Scans/<ISO name>/, the layout AddMyCoverArt 1.1.2 saves. An ISO alone in its folder works as before.",
+            "Full-Screen Album Mode, truly full screen! Once the slideshow turns the page, the stats line fades away and the picture gets the whole screen. Swipe, or a new track, and it comes back until the next page turn. Lyrics keep it.",
+            "Back goes back! Back now steps out one screen at a time: Detail to Simple, Settings to where you opened it, and only Back from Simple leaves EverSignal.",
+            "Smaller fixes: DTS tracks show as Lossy, never Bit-perfect (thanks to Pierre C.); Dynamic range on an SACD ISO says it isn't available for DSD yet, instead of \"files on the Eversolo only\"."},
         {"1.0.14", "2026-11-25",
             "Sound styles, caught! On firmware 1.6.40 and later, a sound style (EVS) changes your music, so EverSignal no longer calls it Bit-perfect: you see an amber Sound style on, it leads the Processing column, and an EVS on/off line sits under Sub. Older firmware is unaffected.",
             "SACD ISO, done right! ISO tracks show as DSD native, with 2&6 ch and DST64 just like the Eversolo's own screen, and the badge explains both. Thanks to Pierre C.",

@@ -324,9 +324,17 @@ public class MainActivity extends Activity implements ScreenView.Actions {
      * Back). No trap: the app only returns after a phone-app or AirPlay start, and the switch turns it off.
      */
     @Override public void onBackPressed() {
-        if (view.viewerOpen()) { view.closeViewer(); return; }   // 1.0.12: Back leaves the art viewer first
-        if (view.feedbackOpen()) { view.closeFeedback(); return; }   // 1.0.12-3: then the Feedback view
-        super.onBackPressed();
+        // 1.0.15 (Michael): one level at a time, see BackStep. Settings goes back exactly as the gear's second tap does.
+        // Stay in front is untouched: Back from Simple still just leaves, as since 1.0.11.
+        switch (BackStep.of(view.viewerOpen(), view.dialogOpen(), view.feedbackOpen(), view.onSettings(),
+                prefs().getBoolean("detail", false))) {
+            case CLOSE_VIEWER: view.closeViewer(); return;      // 1.0.12
+            case CLOSE_DIALOG: view.closeDialog(); return;
+            case CLOSE_FEEDBACK: view.closeFeedback(); return;  // 1.0.12-3
+            case LEAVE_SETTINGS: openSettings(); return;        // the gear's second tap: back to Simple or the Detail page
+            case TO_SIMPLE: toggleMode(); return;
+            default: super.onBackPressed();
+        }
     }
 
     /** 1.0.12: remote / keyboard left-right step the art viewer. */

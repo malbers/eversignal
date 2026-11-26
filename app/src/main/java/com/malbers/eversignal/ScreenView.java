@@ -82,8 +82,11 @@ public final class ScreenView extends View {
         lyricHue = 0;
         long now = System.currentTimeMillis();
         vNextAt = now + slideMs(); vChangedAt = now;
+        vChrome.reset(snap != null && snap.track != null ? snap.track.key : null);   // 1.0.15
         invalidate();
     }
+    /** 1.0.15: the stats line, dots and LYRICS button: shown on open, hidden by the slideshow (ViewerChrome). */
+    private final ViewerChrome vChrome = new ViewerChrome();
     public boolean viewerOpen() { return viewer != null; }
     public String viewerFolder() { return viewer == null ? null : viewer.folder; }
     public void closeViewer() { if (viewer != null) { viewer.close(); viewer = null; invalidate(); } }
@@ -110,8 +113,17 @@ public final class ScreenView extends View {
         return t.dsd ? "DSD" : t.lossy ? "Lossy" : "hires".equals(t.formatClass()) ? "Hi-res" : t.rateHz == null ? null : "CD quality";
     }
 
-    /** Step the viewer by d pictures, skipping any that can't be decoded; restarts the auto-flip timer. */
+    /**
+     * A MANUAL step (swipe, remote, wheel) by d pictures: 1.0.15, the stats line comes back until the next auto flip.
+     */
     public void viewerStep(int d) {
+        if (viewer == null) return;
+        step(d);
+        vChrome.show(System.currentTimeMillis());
+    }
+
+    /** Step the viewer by d pictures, skipping any that can't be decoded; restarts the auto-flip timer. */
+    private void step(int d) {
         if (viewer == null) return;
         int n = viewer.size();
         if (n <= 1) return;
@@ -230,6 +242,10 @@ public final class ScreenView extends View {
     }
 
     private void closeNotes() { notes = null; notesAction = null; invalidate(); }
+
+    /** 1.0.15: Back closes an open dialog (release notes, a confirmation) or an info popup before anything else. */
+    public boolean dialogOpen() { return notes != null || (info != null && System.currentTimeMillis() < infoUntil); }
+    public void closeDialog() { if (notes != null) closeNotes(); else { info = null; invalidate(); } }
 
     public void toast(String text) { toast = text; toastUntil = System.currentTimeMillis() + 1600; invalidate(); }
 
@@ -1963,15 +1979,22 @@ public final class ScreenView extends View {
         // a name that doesn't match, an ISO) says "No lyrics" like the Eversolo apps do, instead of silently showing art.
         boolean lyricsShown = lyricsOn && sn != null && sn.track != null;
         // 1.0.14 (Pierre C.): no flipping underneath lyrics, the page you were on stays when lyrics close
-        if (n > 1 && now >= vNextAt && !lyricsShown) viewerStep(1);
-        if (lyricsShown) vNextAt = now + slideMs();
+        // 1.0.15 (Michael: "Just want to see album art"): the slideshow's own flip hides the stats line; a single picture
+        // hides it when it would have flipped. A new track and a manual step bring it back; lyrics keep it.
+        if (sn != null && sn.track != null) vChrome.track(sn.track.key, now);
+        if (n >= 1 && now >= vNextAt && !lyricsShown) {
+            if (n > 1) step(1); else vNextAt = now + slideMs();
+            vChrome.hide(now);
+        }
+        if (lyricsShown) { vNextAt = now + slideMs(); vChrome.show(now); }
         Bitmap b = viewer.get(vIdx);
-        if (b == null && viewer.failed(vIdx) && n > 1) { viewerStep(1); b = viewer.get(vIdx); }
+        if (b == null && viewer.failed(vIdx) && n > 1) { step(1); b = viewer.get(vIdx); }
+        float ca = vChrome.alpha(now);   // 1 = stats line shown, 0 = the picture has the whole screen
 
         p.reset(); p.setColor(0xFF000000);
         c.drawRect(0, 0, getWidth(), getHeight(), p);
 
-        float top = 12, bottom = 408, l = 16, r = vw - 16;
+        float top = 12, bottom = 468 - 60 * ca, l = 16, r = vw - 16;   // 408 with the stats line, 468 without
         if (b != null) {
             float aw = r - l, ah = bottom - top;
             float sc = Math.min(aw / b.getWidth(), ah / b.getHeight());
@@ -2004,18 +2027,33 @@ public final class ScreenView extends View {
                 if (lyrics != null) drawLyrics(c, sn, top + 40, bottom - 10);
                 else drawCentered(c, "No lyrics", 0, (top + bottom) / 2 - 20, vw, 40, 28, hanken500, 0x99FFFFFF);
             }
+        }
+
+        // 1.0.15: everything below is the chrome, drawn in one layer so it fades as one; gone = no taps on it either
+        vAnim = vChrome.fading(now);
+        if (ca <= 0f) return;
+        int layer = ca < 1f ? c.saveLayerAlpha(0, 0, getWidth(), getHeight(), Math.round(255 * ca)) : -1;
+        try {
+            drawViewerChrome(c, sn, now, n, lyricsShown, ca);
+        } finally {
+            if (layer >= 0) c.restoreToCount(layer);
+        }
+    }
+
+    private void drawViewerChrome(Canvas c, Poller.Snapshot sn, long now, int n, boolean lyricsShown, float ca) {
+        boolean live = ca > 0.5f;   // half faded: taps go to the picture (close), not to a button you can barely see
+        if (lyrics != null || lyricsOn) {
             // 1.0.14 (Pierre C. #843): the button names where a tap TAKES you. With lyrics up it reads COVER, so
             // "No lyrics" never sits next to a "LYRICS" button and the way back to the art is obvious.
             String btn = lyricsOn ? "COVER" : "LYRICS";
             float bw = measure(btn, 14, hanken600) + 28;
             roundRect(c, 20, 20, bw, 34, 17, 0xA6000000); strokeRect(c, 20, 20, bw, 34, 17, 0x59FFFFFF, 1);
             drawCentered(c, btn, 20, 20, bw, 34, 14, hanken600, LIGHT);
-            hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; invalidate(); });
+            if (live) hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; invalidate(); });
         }
 
         // 1.0.13.1: "3 / 12 · Scan/03.jpg" moved OFF the picture into the dot row (Václav H. 2026-11-23: the top label
         // disturbed the booklet). It cross-fades with the dots: in over LABEL_IN, holds, out over LABEL_OUT (Michael: "soft").
-        vAnim = false;
         if (n > 1 && !lyricsShown) {   // 1.0.14: the dots belong to the pictures, which are hidden under lyrics
             float dy = 418;
             long since = now - vChangedAt;

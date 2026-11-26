@@ -102,7 +102,7 @@ final class DrScan {
     static boolean isDsd(String n) {
         if (n == null) return false;
         String l = n.toLowerCase(Locale.US);
-        return l.endsWith(".dsf") || l.endsWith(".dff");
+        return l.endsWith(".dsf") || l.endsWith(".dff") || l.endsWith(".iso");   // 1.0.15: SACD ISO (Michael, Ultra)
     }
 
     /** 1.0.14: why a file couldn't be measured, in plain words. Reads only the file header. */

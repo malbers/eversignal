@@ -83,6 +83,13 @@ public final class Track {
 
     private static final Pattern LOSSY = Pattern.compile("(?i)^(mp3|aac|m4a|ogg|opus|wma|vorbis|sbc|ldac|aptx)$");
 
+    /** 1.0.15: a DTS core stream (lossy), from the file extension or the player's codec; never DTS-HD, DTS:X or MA. */
+    static boolean isDtsCore(String container, String codec) {
+        String all = ((container == null ? "" : container) + " " + (codec == null ? "" : codec)).toLowerCase(Locale.US);
+        if (all.matches("(?s).*(dts[-_ ]?hd|dts:?x|\\bma\\b|master|lossless).*")) return false;
+        return all.matches("(?s).*\\b(dts|dca)\\b.*");
+    }
+
     public static Track from(Map<String, String> s, boolean outputSettled) {
         Track t = new Track();
         String pm = "playingMusic.", info = "everSoloPlayInfo.", ain = info + "everSoloPlayAudioInfo.",
@@ -171,6 +178,10 @@ public final class Track {
         // 2026-11-24), which none of the old words matched: it showed Hi-res + Bit-perfect instead of DSD native.
         t.dsd = c.matches("(?is).*\\b(dsf|dff|dsd|iso|sacd)\\b.*") || c.toUpperCase(Locale.US).contains("DSD");
         t.lossy = t.container != null && LOSSY.matcher(t.container).matches();
+        // 1.0.15 (Pierre C., Uriah Heep DVD .dts: Source DTS 48 kHz / 32-bit / 6 ch read Bit-perfect): DTS core is lossy,
+        // and the A6 decodes it to PCM (Eversolo R&D 2026-11-02), so the 32 bits are the decoder's, as with Dolby.
+        // DTS-HD Master Audio is lossless: left alone until one is seen.
+        if (isDtsCore(t.container, t.codec)) { t.lossy = true; t.container = "DTS"; t.bits = null; }
         // 1.0.8: .m4a holds ALAC (lossless) or AAC (lossy), and the player names neither (no codec field; its
         // isLossless flag is false even for ALAC). Measured 2026-11-17 on the A6: ALAC 24/96 reports bits 24 and
         // 1.75 Mbps, AAC 256k reports bits 16 and 188 kbps. AAC tops out near 320 kbps, so 24-bit or >= 400 kbps = ALAC.
