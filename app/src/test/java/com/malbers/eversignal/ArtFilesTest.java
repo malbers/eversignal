@@ -86,6 +86,82 @@ public class ArtFilesTest {
         assertFalse(ArtFiles.isDiscFolder(null));
     }
 
+    // ---------------------------------------------------------------- 1.0.15: SACD ISOs sharing a folder
+
+    private static final String VIOLATOR = "1990 - Violator (DMCD7 2006 SACD Remaster)";
+    private static final String ULTRA = "1997 - Ultra (DMCD9 2007 SACD Remaster)";
+
+    /** Michael's Depeche Mode folder (Gen 1, 2026-11-25): 13 ISOs, each "<ISO name>.jpg", extras in Scans/<ISO name>/. */
+    private static List<ArtFiles.Entry> depecheMode() {
+        return Arrays.asList(
+            f("1981 - Speak & Spell (DMCD1 2006 SACD Remaster).iso"), f("1981 - Speak & Spell (DMCD1 2006 SACD Remaster).jpg"),
+            f(VIOLATOR + ".iso"), f(VIOLATOR + ".jpg"), f(ULTRA + ".iso"), f(ULTRA + ".jpg"),
+            f("folder.jpg"),
+            d("Scans",
+                d(VIOLATOR, f("booklet-10.jpg"), f("back.jpg"), f("booklet-2.jpg"), f("notes.txt")),
+                d("1981 - Speak & Spell (DMCD1 2006 SACD Remaster)", f("back.jpg"))));
+    }
+
+    @Test public void severalIsosAreShared() {
+        assertTrue(ArtFiles.isoShared(depecheMode()));
+        assertTrue(ArtFiles.isIso("A.ISO"));
+        assertFalse(ArtFiles.isIso("a.flac"));
+    }
+
+    /** Violator: its own cover, then Scans/<ISO name>/ in natural order. Never a neighbour's cover or folder.jpg. */
+    @Test public void sharedIsoOwnArtOnly() {
+        assertEquals(Arrays.asList(VIOLATOR + ".jpg", "Scans/" + VIOLATOR + "/back.jpg",
+                "Scans/" + VIOLATOR + "/booklet-2.jpg", "Scans/" + VIOLATOR + "/booklet-10.jpg"),
+            ArtFiles.isoOrder(VIOLATOR + ".iso", depecheMode()));
+    }
+
+    /** Ultra: cover only (no Scans/<ISO name>/). */
+    @Test public void sharedIsoCoverOnly() {
+        assertEquals(Arrays.asList(ULTRA + ".jpg"), ArtFiles.isoOrder(ULTRA + ".iso", depecheMode()));
+    }
+
+    /** No own picture: nothing, not the neighbour's. */
+    @Test public void sharedIsoWithoutArt() {
+        List<ArtFiles.Entry> dir = Arrays.asList(f("A.iso"), f("B.iso"), f("B.jpg"), f("folder.jpg"));
+        assertTrue(ArtFiles.isoOrder("A.iso", dir).isEmpty());
+        assertEquals(Arrays.asList("B.jpg"), ArtFiles.isoOrder("B.iso", dir));
+    }
+
+    /** .jpeg and .png count too, any case; jpg first. Scan/, Scans/ and Artwork/ all hold extras. */
+    @Test public void sharedIsoExtensionsAndScanNames() {
+        List<ArtFiles.Entry> dir = Arrays.asList(f("A.iso"), f("B.iso"), f("A.PNG"), f("a.jpeg"),
+            d("Artwork", d("A", f("1.jpg"))), d("Scan", d("a", f("2.png"))), d("Booklet", d("A", f("3.jpg"))));
+        assertEquals(Arrays.asList("a.jpeg", "A.PNG", "Artwork/A/1.jpg", "Scan/a/2.png"), ArtFiles.isoOrder("A.iso", dir));
+    }
+
+    /**
+     * Billy Joel (Gen 1): The Nylon Curtain loose beside the Piano Man album folder = shared, its extras in
+     * Scans/<ISO name>/ (3 pictures). Piano Man alone in its own folder = an ordinary album.
+     */
+    @Test public void billyJoel() {
+        String nc = "Billy Joel - The Nylon Curtain (1982) [SACD, DSD64, 1Bit-2.8MHz Stereo Channel 2.0, (ISO)]";
+        List<ArtFiles.Entry> artist = Arrays.asList(f(nc + ".iso"), f(nc + ".jpg"),
+            d("Piano Man", f("Billy Joel - Piano Man (1973).iso"), f("folder.jpg"), d("Scan", f("front.jpg"))),
+            d("Scans", d(nc, f("back.jpg"), f("disc-01.jpg"), f("disc-02.jpg"))));
+        assertTrue(ArtFiles.isoShared(artist));
+        assertEquals(Arrays.asList(nc + ".jpg", "Scans/" + nc + "/back.jpg", "Scans/" + nc + "/disc-01.jpg",
+            "Scans/" + nc + "/disc-02.jpg"), ArtFiles.isoOrder(nc + ".iso", artist));
+
+        List<ArtFiles.Entry> pianoMan = Arrays.asList(f("Billy Joel - Piano Man (1973).iso"), f("folder.jpg"),
+            d("Scan", f("back.jpg"), f("front.jpg")));
+        assertFalse(ArtFiles.isoShared(pianoMan));
+    }
+
+    /** Picture folders never make an ISO shared (Pixies Doolittle: Artwork/ of scans); other music does. */
+    @Test public void whatMakesAnIsoShared() {
+        assertFalse(ArtFiles.isoShared(Arrays.asList(f("Doolittle.iso"), f("Doolittle.jpg"),
+            d("Artwork", f("1.jpg"), d("inner", f("2.jpg"))), d("Scans", f("3.jpg")), f("Doolittle.cue"))));
+        assertTrue(ArtFiles.isoShared(Arrays.asList(f("A.iso"), f("bonus.flac"))));
+        assertTrue(ArtFiles.isoShared(Arrays.asList(f("A.iso"), d("Albums", d("B", f("01.dsf"))))));
+        assertFalse(ArtFiles.isoShared(Arrays.asList(f("A.iso"), d(".hidden", f("x.flac")))));
+        assertFalse(ArtFiles.isoShared(Arrays.asList(f("01.flac"), f("02.flac"))));   // no ISO at all
+    }
+
     @Test public void coverRank() {
         assertEquals(0, ArtFiles.coverRank("Cover.jpg", "A"));
         assertEquals(3, ArtFiles.coverRank("My Album.jpg", "my album"));

@@ -350,8 +350,13 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     /** Every file read goes through this: Android has granted it AND the switch is On. */
     private boolean canReadFiles() { return hasFilePermission() && filesOn(); }
 
+    /**
+     * The album a track's pictures belong to: its folder, or for an SACD ISO the ISO itself (1.0.15: every ISO is its
+     * own album, so going from one Depeche Mode ISO to the next in the same folder reloads the viewer and the "+N").
+     */
     private static String folderOf(String path) {
         if (!ArtLoader.isLocal(path)) return null;
+        if (ArtFiles.isIso(path)) return path;
         File p = new File(path).getParentFile();
         return p == null ? null : p.getPath();
     }
