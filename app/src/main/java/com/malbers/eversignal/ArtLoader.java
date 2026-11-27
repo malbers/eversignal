@@ -42,6 +42,16 @@ final class ArtLoader {
         File[] files = dir.listFiles();
         if (files == null) return out;
 
+        // 1.0.15: an SACD ISO sharing its folder (several ISOs, other music, album subfolders) owns only its
+        // "<ISO name>.jpg" and Scans/<ISO name>/ (see ArtFiles.isoShared). No disc-set parent, no embedded art.
+        if (ArtFiles.isIso(track.getName())) {
+            List<ArtFiles.Entry> deep = entries(files, 2);
+            if (ArtFiles.isoShared(deep)) {
+                for (String rel : ArtFiles.isoOrder(track.getName(), deep)) out.add(new Item(new File(dir, rel), rel));
+                return dedupe(out);
+            }
+        }
+
         List<String> ordered = ArtFiles.order(dir.getName(), entries(files));
         List<Item> root = new ArrayList<>(), sub = new ArrayList<>();
         for (String rel : ordered) (rel.contains("/") ? sub : root).add(new Item(new File(dir, rel), rel));
@@ -77,14 +87,15 @@ final class ArtLoader {
         return dedupe(out);
     }
 
-    private static List<ArtFiles.Entry> entries(File[] files) {
+    private static List<ArtFiles.Entry> entries(File[] files) { return entries(files, 1); }
+
+    /** The listing, with subfolders listed depth levels down (1 = as before 1.0.15: a subfolder's own files). */
+    private static List<ArtFiles.Entry> entries(File[] files, int depth) {
         List<ArtFiles.Entry> entries = new ArrayList<>();
         for (File f : files) {
             if (f.isDirectory()) {
-                File[] sub = f.listFiles();
-                List<ArtFiles.Entry> kids = new ArrayList<>();
-                if (sub != null) for (File s : sub) kids.add(s.isDirectory() ? new ArtFiles.Entry(s.getName(), new ArrayList<>()) : new ArtFiles.Entry(s.getName(), s.length()));
-                entries.add(new ArtFiles.Entry(f.getName(), kids));
+                File[] sub = depth > 0 ? f.listFiles() : null;
+                entries.add(new ArtFiles.Entry(f.getName(), sub == null ? new ArrayList<>() : entries(sub, depth - 1)));
             } else entries.add(new ArtFiles.Entry(f.getName(), f.length()));
         }
         return entries;

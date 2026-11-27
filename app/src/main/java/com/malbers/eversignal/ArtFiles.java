@@ -110,6 +110,73 @@ final class ArtFiles {
         return !ordered.isEmpty() && !ordered.get(0).contains("/") && coverRank(ordered.get(0), folderName) <= 4;
     }
 
+    // ---------------------------------------------------------------- 1.0.15: SACD ISOs sharing a folder
+    //
+    // Michael's Gen 1 (2026-11-25): EverSoloMusic/ISO/Depeche Mode holds 13 ISOs, each with "<ISO name>.jpg" beside
+    // it and extras in Scans/<ISO name>/ (AddMyCoverArt 1.1.2's layout). order() took every picture in the folder, so
+    // each Depeche Mode album showed all 13 covers, and Scans/<ISO name>/ (two levels down) never showed. Same rule as
+    // AddMyCoverArt's Album.sharedIso / FolderSummary.isosShared. An ISO alone in its folder stays an ordinary album.
+
+    static boolean isIso(String name) { return name != null && name.toLowerCase(Locale.ROOT).endsWith(".iso"); }
+
+    /** Folders that hold an album's extra pictures (AddMyCoverArt's ExtraWriter.isScansName). */
+    static boolean isScansName(String n) {
+        return n.equalsIgnoreCase("scan") || n.equalsIgnoreCase("scans") || n.equalsIgnoreCase("artwork");
+    }
+
+    /** Music for the shared test: a cue sheet is not an album of its own. */
+    private static boolean isMusic(String n) { return isAudio(n) && !n.toLowerCase(Locale.ROOT).endsWith(".cue"); }
+
+    /** A folder with music in it, directly or one level down (an album, or a folder of albums). */
+    static boolean holdsMusic(Entry dir) {
+        if (!dir.isDir()) return false;
+        for (Entry e : dir.children) if (!e.isDir() && isMusic(e.name)) return true;
+        for (Entry e : dir.children) {
+            if (!e.isDir() || e.name.startsWith(".")) continue;
+            for (Entry g : e.children) if (!g.isDir() && isMusic(g.name)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * True when the ISOs in this folder are albums of their own: several ISOs, an ISO beside other music, or beside
+     * a subfolder that holds music. Picture folders (Scan, Scans, Artwork, anything without music) don't count.
+     * Needs the listing two levels deep (folder / subfolder / its subfolders' files).
+     */
+    static boolean isoShared(List<Entry> folder) {
+        int isos = 0, music = 0;
+        for (Entry e : folder) {
+            if (e.isDir()) { if (!e.name.startsWith(".") && holdsMusic(e)) return true; }
+            else if (isMusic(e.name)) { music++; if (isIso(e.name)) isos++; }
+        }
+        return isos > 1 || (isos > 0 && music > isos);
+    }
+
+    /**
+     * A shared ISO's own pictures, as relative paths: "<ISO name>.jpg/.jpeg/.png" beside it (jpg first), then the
+     * pictures in Scan|Scans|Artwork/<ISO name>/ in natural order. Never a neighbour's cover, never folder.jpg.
+     */
+    static List<String> isoOrder(String isoFileName, List<Entry> folder) {
+        String base = stripExt(isoFileName);
+        List<String> out = new ArrayList<>();
+        for (String ext : new String[]{"jpg", "jpeg", "png"}) {
+            for (Entry e : folder) if (!e.isDir() && e.name.equalsIgnoreCase(base + "." + ext)) out.add(e.name);
+        }
+        List<Entry> scans = new ArrayList<>();
+        for (Entry e : folder) if (e.isDir() && isScansName(e.name)) scans.add(e);
+        scans.sort((a, b) -> natural(a.name, b.name));
+        for (Entry s : scans) {
+            for (Entry own : s.children) {
+                if (!own.isDir() || !own.name.equalsIgnoreCase(base)) continue;
+                List<Entry> imgs = new ArrayList<>();
+                for (Entry e : own.children) if (!e.isDir() && isImage(e.name)) imgs.add(e);
+                imgs.sort((a, b) -> natural(a.name, b.name));
+                for (Entry e : imgs) out.add(s.name + "/" + own.name + "/" + e.name);
+            }
+        }
+        return out.size() > MAX_IMAGES ? new ArrayList<>(out.subList(0, MAX_IMAGES)) : out;
+    }
+
     static String stripExt(String name) {
         int d = name.lastIndexOf('.');
         return d > 0 ? name.substring(0, d) : name;

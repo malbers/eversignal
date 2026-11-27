@@ -102,7 +102,7 @@ final class DrScan {
     static boolean isDsd(String n) {
         if (n == null) return false;
         String l = n.toLowerCase(Locale.US);
-        return l.endsWith(".dsf") || l.endsWith(".dff");
+        return l.endsWith(".dsf") || l.endsWith(".dff") || l.endsWith(".iso");   // 1.0.15: SACD ISO (Michael, Ultra)
     }
 
     /** 1.0.14: why a file couldn't be measured, in plain words. Reads only the file header. */
@@ -140,15 +140,69 @@ final class DrScan {
         cacheFile = new File(filesDir, "dr-cache.json");
         cache = new HashMap<>();
         try {
-            if (cacheFile.isFile()) {
-                JSONObject j = new JSONObject(new String(Files.readAllBytes(cacheFile.toPath()), StandardCharsets.UTF_8));
-                for (Iterator<String> it = j.keys(); it.hasNext(); ) {
-                    String k = it.next();
-                    JSONArray a = j.getJSONArray(k);
-                    cache.put(k, new double[]{a.getDouble(0), a.getDouble(1), a.getDouble(2)});
-                }
-            }
+            if (cacheFile.isFile()) cache.putAll(parse(new String(Files.readAllBytes(cacheFile.toPath()), StandardCharsets.UTF_8)));
         } catch (Exception ignored) { cache.clear(); }
+    }
+
+    /** Tests only: forget the in-memory cache so init() reads again. */
+    static synchronized void resetForTest() { cache = null; cacheFile = null; dirty = false; }
+
+    static Map<String, double[]> parse(String json) throws Exception {
+        Map<String, double[]> out = new HashMap<>();
+        JSONObject j = new JSONObject(json);
+        for (Iterator<String> it = j.keys(); it.hasNext(); ) {
+            String k = it.next();
+            JSONArray a = j.getJSONArray(k);
+            out.put(k, new double[]{a.getDouble(0), a.getDouble(1), a.getDouble(2)});
+        }
+        return out;
+    }
+
+    static synchronized String toJson() throws Exception {
+        JSONObject j = new JSONObject();
+        if (cache != null) for (Map.Entry<String, double[]> e : cache.entrySet()) {
+            JSONArray a = new JSONArray();
+            for (double d : e.getValue()) a.put(d);
+            j.put(e.getKey(), a);
+        }
+        return j.toString();
+    }
+
+    // ---------------------------------------------------------------- 1.0.15-beta.3: backup in Download (Michael)
+    // The cache lives in app-private storage, which Android deletes on uninstall: Michael lost DR results that way
+    // (2026-11-26). So a copy goes to Download/EverSignal (written by MainActivity through MediaStore, no write
+    // permission) and comes back when the private cache is missing. Updates over the top keep the private cache anyway.
+
+    static final String BACKUP_PREFIX = "dr-cache-backup";
+    private static boolean dirty;            // results added since the last backup
+
+    static synchronized boolean backupDue() { return dirty && cache != null && !cache.isEmpty(); }
+    static synchronized void backedUp() { dirty = false; }
+
+    /** The newest readable backup in dir: "dr-cache-backup.json", or the "(1)" etc. copies Android makes after a reinstall. */
+    static File newestBackup(File dir) {
+        File[] fs = dir == null ? null : dir.listFiles(x -> x.isFile() && x.getName().startsWith(BACKUP_PREFIX) && x.getName().endsWith(".json") && x.canRead());
+        if (fs == null || fs.length == 0) return null;
+        File best = fs[0];
+        for (File f : fs) if (f.lastModified() > best.lastModified()) best = f;
+        return best;
+    }
+
+    /**
+     * On a fresh install (no private cache file yet), fill the cache from the newest backup in dir. Results already
+     * in memory win. Returns how many results came back (0 = nothing to restore or not readable).
+     */
+    static synchronized int restoreIfFresh(File dir) {
+        if (cache == null || cacheFile == null || cacheFile.isFile()) return 0;
+        File b = newestBackup(dir);
+        if (b == null) return 0;
+        try {
+            Map<String, double[]> m = parse(new String(Files.readAllBytes(b.toPath()), StandardCharsets.UTF_8));
+            int n = 0;
+            for (Map.Entry<String, double[]> e : m.entrySet()) if (!cache.containsKey(e.getKey())) { cache.put(e.getKey(), e.getValue()); n++; }
+            writeCache();
+            return n;
+        } catch (Exception e) { return 0; }
     }
 
     private static String key(File f) { return f.getAbsolutePath() + "|" + f.length() + "|" + f.lastModified(); }
@@ -166,18 +220,17 @@ final class DrScan {
         return v != null && v[0] == UNREADABLE;
     }
 
-    private static synchronized void put(File f, Item i) {
+    static synchronized void put(File f, Item i) {
         if (cache == null) return;
         cache.put(key(f), new double[]{i.dr, i.peakDb, i.rmsDb});
+        dirty = true;
+        writeCache();
+    }
+
+    private static synchronized void writeCache() {
         try {
-            JSONObject j = new JSONObject();
-            for (Map.Entry<String, double[]> e : cache.entrySet()) {
-                JSONArray a = new JSONArray();
-                for (double d : e.getValue()) a.put(d);
-                j.put(e.getKey(), a);
-            }
             File tmp = new File(cacheFile.getPath() + ".tmp");
-            try (Writer w = new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8)) { w.write(j.toString()); }
+            try (Writer w = new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8)) { w.write(toJson()); }
             if (!tmp.renameTo(cacheFile)) { cacheFile.delete(); tmp.renameTo(cacheFile); }   // write-then-rename: never a half file
         } catch (Exception ignored) { }
     }
@@ -215,18 +268,34 @@ final class DrScan {
     /** Every track in the folder not already cached. Reports after each track. */
     static Album measureAlbum(File dir, Progress p, Cancelled cancel) { return measureAlbum(dir, p, cancel, false); }
 
+    /** Where a track goes so the list stays in file (name) order. */
+    static int slot(List<Item> items, String name) {
+        int k = 0;
+        while (k < items.size() && items.get(k).name.compareToIgnoreCase(name) < 0) k++;
+        return k;
+    }
+
     static Album measureAlbum(File dir, Progress p, Cancelled cancel, boolean fresh) {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
         Album a = new Album(dir.getPath());
         File[] fs = tracks(dir);
         a.total = fs.length;
         a.running = true;
-        p.update(a);
+        // 1.0.15-beta.3 (Michael + Pierre C., 2026-11-26): tracks already measured show at once, instead of only
+        // when the pass reaches them in file order (a track measured alone "went missing" from the album list).
+        List<File> todo = new ArrayList<>();
         for (File f : fs) {
+            Item c = fresh ? null : cached(f);
+            if (c != null) { a.items.add(c); a.done++; }
+            else if (!fresh && knownUnreadable(f)) { a.failed++; a.done++; a.failedNames.add(f.getName()); if (a.failWhy == null) a.failWhy = whyUnreadable(f); }
+            else todo.add(f);
+        }
+        p.update(a);
+        for (File f : todo) {
             if (cancel.get()) break;
             Item i = measureTrack(f, cancel, fresh);
             if (cancel.get()) break;
-            if (i != null) a.items.add(i); else { a.failed++; a.failedNames.add(f.getName()); if (a.failWhy == null) a.failWhy = whyUnreadable(f); }
+            if (i != null) a.items.add(slot(a.items, i.name), i); else { a.failed++; a.failedNames.add(f.getName()); if (a.failWhy == null) a.failWhy = whyUnreadable(f); }
             a.done++;
             p.update(a);
         }

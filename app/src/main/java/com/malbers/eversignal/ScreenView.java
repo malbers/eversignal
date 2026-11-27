@@ -82,8 +82,11 @@ public final class ScreenView extends View {
         lyricHue = 0;
         long now = System.currentTimeMillis();
         vNextAt = now + slideMs(); vChangedAt = now;
+        vChrome.reset(snap != null && snap.track != null ? snap.track.key : null);   // 1.0.15
         invalidate();
     }
+    /** 1.0.15: the stats line, dots and LYRICS button: shown on open, hidden by the slideshow (ViewerChrome). */
+    private final ViewerChrome vChrome = new ViewerChrome();
     public boolean viewerOpen() { return viewer != null; }
     public String viewerFolder() { return viewer == null ? null : viewer.folder; }
     public void closeViewer() { if (viewer != null) { viewer.close(); viewer = null; invalidate(); } }
@@ -110,8 +113,17 @@ public final class ScreenView extends View {
         return t.dsd ? "DSD" : t.lossy ? "Lossy" : "hires".equals(t.formatClass()) ? "Hi-res" : t.rateHz == null ? null : "CD quality";
     }
 
-    /** Step the viewer by d pictures, skipping any that can't be decoded; restarts the auto-flip timer. */
+    /**
+     * A MANUAL step (swipe, remote, wheel) by d pictures: 1.0.15, the stats line comes back until the next auto flip.
+     */
     public void viewerStep(int d) {
+        if (viewer == null) return;
+        step(d);
+        vChrome.show(System.currentTimeMillis());
+    }
+
+    /** Step the viewer by d pictures, skipping any that can't be decoded; restarts the auto-flip timer. */
+    private void step(int d) {
         if (viewer == null) return;
         int n = viewer.size();
         if (n <= 1) return;
@@ -231,7 +243,12 @@ public final class ScreenView extends View {
 
     private void closeNotes() { notes = null; notesAction = null; invalidate(); }
 
-    public void toast(String text) { toast = text; toastUntil = System.currentTimeMillis() + 1600; invalidate(); }
+    /** 1.0.15: Back closes an open dialog (release notes, a confirmation) or an info popup before anything else. */
+    public boolean dialogOpen() { return notes != null || (info != null && System.currentTimeMillis() < infoUntil); }
+    public void closeDialog() { if (notes != null) closeNotes(); else { info = null; invalidate(); } }
+
+    public void toast(String text) { toast(text, 1600); }
+    public void toast(String text, long ms) { toast = text; toastUntil = System.currentTimeMillis() + ms; invalidate(); }
 
     /** The update pill: null hides it; colour says the state (offer / downloading / saved / failed). */
     private String update;
@@ -1216,7 +1233,9 @@ public final class ScreenView extends View {
             p.reset(); p.setColor(0x14FFFFFF);
             c.drawRect(X(ix), Y(fy), X(ix + iw), Y(fy + 1), p);
             String active = d.outputIndex >= 0 && d.outputIndex < d.outputs.size() ? d.outputs.get(d.outputIndex) : "Output";
-            text(c, active + " can do", ix, fy + 15, 10.5f, hanken500, 0x80FFFFFF, iw);
+            // 1.0.15-beta.3 (Pierre C., Michael picked H1): this is the player's own claim, passed through as reported
+            // (outputInfo.format / sampleRate); "8ch" on the A6's HDMI is in doubt, so say whose words they are
+            text(c, active + ", per the Eversolo", ix, fy + 15, 10.5f, hanken500, 0x80FFFFFF, iw);
             text(c, d.capFormat == null ? "N/A" : d.capFormat, ix, fy + 29, 11, mono400, 0xEBFFFFFF, iw);
             text(c, d.capMax == null ? "" : d.capMax, ix, fy + 42, 11, mono400, 0x9EFFFFFF, iw);
         }
@@ -1338,6 +1357,7 @@ public final class ScreenView extends View {
         final int kind;
         boolean list;                                       // chips drawn one per row (Track flags only)
         boolean rowsFirst;                                  // 1.0.12.13: rows, then text, then wraps (Dynamic range)
+        boolean buttonsTop;                                 // 1.0.15-beta.3: buttons right under the rows (rowsFirst only)
         float wrapSize = 11;                                // 1.0.12.15: smaller explanation text (Dynamic range)
         final List<String[]> rows = new ArrayList<>();
         final List<String> text = new ArrayList<>();
@@ -1506,23 +1526,26 @@ public final class ScreenView extends View {
 
     private static final float BTN_H = 26;
 
+    private void drawButtons(Canvas c, Section sec, float bx, float byy) {
+        for (Object[] b : sec.buttons) {
+            String label = (String) b[0];
+            float bw = measure(label, 11.5f, hanken600) + 24;
+            roundRect(c, bx, byy, bw, BTN_H, BTN_H / 2, 0x1FFFFFFF);
+            strokeRect(c, bx + 0.5f, byy + 0.5f, bw - 1, BTN_H - 1, BTN_H / 2, 0x33FFFFFF, 1);
+            text(c, label, bx + 12, byy + 17, 11.5f, hanken600, LIGHT, bw);
+            final Runnable r = (Runnable) b[1];
+            hit(bx, byy, bw, BTN_H, () -> { r.run(); invalidate(); });
+            bx += bw + 8;
+        }
+    }
+
     private void drawSection(Canvas c, Section sec, float x, float y, float w, float h) {
         float ry = panel(c, sec.title, x, y, w, h), ix = x + 11, iw = w - 22;
-        if (!sec.buttons.isEmpty()) {   // 1.0.12.12: action buttons along the bottom of the panel
-            float bx = ix, byy = y + h - 9 - BTN_H;
-            for (Object[] b : sec.buttons) {
-                String label = (String) b[0];
-                float bw = measure(label, 11.5f, hanken600) + 24;
-                roundRect(c, bx, byy, bw, BTN_H, BTN_H / 2, 0x1FFFFFFF);
-                strokeRect(c, bx + 0.5f, byy + 0.5f, bw - 1, BTN_H - 1, BTN_H / 2, 0x33FFFFFF, 1);
-                text(c, label, bx + 12, byy + 17, 11.5f, hanken600, LIGHT, bw);
-                final Runnable r = (Runnable) b[1];
-                hit(bx, byy, bw, BTN_H, () -> { r.run(); invalidate(); });
-                bx += bw + 8;
-            }
-        }
+        // 1.0.12.12: action buttons along the bottom of the panel; 1.0.15-beta.3: or right under the rows (buttonsTop)
+        if (!sec.buttons.isEmpty() && !sec.buttonsTop) drawButtons(c, sec, ix, y + h - 9 - BTN_H);
         if (sec.rowsFirst) {
             for (String[] r : sec.rows) ry = row(c, r[0], r[1], ix, ry, iw);
+            if (!sec.buttons.isEmpty() && sec.buttonsTop) { drawButtons(c, sec, ix, ry + 4); ry += BTN_H + 8; }
             if (!sec.text.isEmpty()) ry = divider(c, ix, ry, iw);    // 1.0.12.14: results | list | explanation
             ry = drawText(c, sec, ix, ry, iw);
             if (!sec.wraps.isEmpty()) ry = divider(c, ix, ry, iw);
@@ -1628,7 +1651,8 @@ public final class ScreenView extends View {
         else if (a.done > 0) av = a.done + " of " + a.total + " tracks measured";
         else av = "not measured (" + a.total + " tracks)";
         d.row("Album", av);
-        if (a != null && (a.items.size() > 1 || !a.failedNames.isEmpty())) {
+        // 1.0.15-beta.3 (Michael + Pierre C.): a single measured track is listed too (was hidden until two)
+        if (a != null && (!a.items.isEmpty() || !a.failedNames.isEmpty())) {
             List<String> names = new ArrayList<>();
             for (DrScan.Item i : a.items) names.add(i.name);
             names.addAll(a.failedNames);
@@ -1640,14 +1664,9 @@ public final class ScreenView extends View {
             // 1.0.14 (Pierre C.): files that couldn't be read are listed too, instead of silently missing
             for (int k = 0; k < a.failedNames.size(); k++) d.text.add(shortN.get(a.items.size() + k) + "\tcan't read");
         }
-        // 1.0.12.15 (Michael): explain peak and RMS too, smaller text
-        d.wrapSize = 10;
-        d.wrap(null, "DR = how much the master was compressed: 14+ very dynamic · 8-13 healthy · 7 or below heavily compressed.");
-        d.wrap(null, "Peak = the loudest moment. 0 dB is the most a file can hold; a master that stops at exactly the same peak"
-            + " on every track (often -1.0 dB) has a limiter on it.");
-        d.wrap(null, "RMS = the average loudness. The closer to 0, the louder and more squashed. DR is roughly the gap between"
-            + " the loud passages and the peaks.");
-        d.wrap(null, "Same method as foobar's DR Meter.");
+        // 1.0.15-beta.3 (Michael, Pierre C. "too much text"): the explanation moved behind the Info button, and the
+        // buttons sit right under the results instead of below the list
+        d.buttonsTop = true;
         if (drTrackRunning || (a != null && a.running)) d.button("Cancel", actions::cancelDr);
         else {
             if (drTrack == null && drWhy == null) d.button("Measure track", actions::measureDrTrack);
@@ -1656,7 +1675,26 @@ public final class ScreenView extends View {
             // 1.0.14 (Pierre C.): a foobar-style text log in Download, to compare with foobar / the DR database
             if (a != null && !a.items.isEmpty()) d.button("Save to Download", actions::exportDr);
         }
+        d.button("Info", () -> showInfoLines(DR_INFO));
         return d;
+    }
+
+    /** 1.0.15-beta.3: the Dynamic range explanation (was four lines on screen; 1.0.12.15 wording) + where saves go. */
+    static final String[] DR_INFO = {
+        "Dynamic range",
+        "DR = how much the master was compressed: 14+ very dynamic · 8-13 healthy · 7 or below heavily compressed.",
+        "Peak = the loudest moment. 0 dB is the most a file can hold; a master that stops at exactly the same peak"
+            + " on every track (often -1.0 dB) has a limiter on it.",
+        "RMS = the average loudness. The closer to 0, the louder and more squashed. DR is roughly the gap between"
+            + " the loud passages and the peaks.",
+        "Same method as foobar's DR Meter.",
+        "Save to Download writes a foobar-style .txt to Files › Storage › Download › EverSignal.",
+    };
+
+    private void showInfoLines(String[] lines) {
+        info = lines.clone();
+        infoUntil = System.currentTimeMillis() + 30000;
+        invalidate();
     }
 
     // ---- page 2: Track & file
@@ -1963,15 +2001,22 @@ public final class ScreenView extends View {
         // a name that doesn't match, an ISO) says "No lyrics" like the Eversolo apps do, instead of silently showing art.
         boolean lyricsShown = lyricsOn && sn != null && sn.track != null;
         // 1.0.14 (Pierre C.): no flipping underneath lyrics, the page you were on stays when lyrics close
-        if (n > 1 && now >= vNextAt && !lyricsShown) viewerStep(1);
-        if (lyricsShown) vNextAt = now + slideMs();
+        // 1.0.15 (Michael: "Just want to see album art"): the slideshow's own flip hides the stats line; a single picture
+        // hides it when it would have flipped. A new track and a manual step bring it back; lyrics keep it.
+        if (sn != null && sn.track != null) vChrome.track(sn.track.key, now);
+        if (n >= 1 && now >= vNextAt && !lyricsShown) {
+            if (n > 1) step(1); else vNextAt = now + slideMs();
+            vChrome.hide(now);
+        }
+        if (lyricsShown) { vNextAt = now + slideMs(); vChrome.show(now); }
         Bitmap b = viewer.get(vIdx);
-        if (b == null && viewer.failed(vIdx) && n > 1) { viewerStep(1); b = viewer.get(vIdx); }
+        if (b == null && viewer.failed(vIdx) && n > 1) { step(1); b = viewer.get(vIdx); }
+        float ca = vChrome.alpha(now);   // 1 = stats line shown, 0 = the picture has the whole screen
 
         p.reset(); p.setColor(0xFF000000);
         c.drawRect(0, 0, getWidth(), getHeight(), p);
 
-        float top = 12, bottom = 408, l = 16, r = vw - 16;
+        float top = 12, bottom = 468 - 60 * ca, l = 16, r = vw - 16;   // 408 with the stats line, 468 without
         if (b != null) {
             float aw = r - l, ah = bottom - top;
             float sc = Math.min(aw / b.getWidth(), ah / b.getHeight());
@@ -2004,18 +2049,33 @@ public final class ScreenView extends View {
                 if (lyrics != null) drawLyrics(c, sn, top + 40, bottom - 10);
                 else drawCentered(c, "No lyrics", 0, (top + bottom) / 2 - 20, vw, 40, 28, hanken500, 0x99FFFFFF);
             }
+        }
+
+        // 1.0.15: everything below is the chrome, drawn in one layer so it fades as one; gone = no taps on it either
+        vAnim = vChrome.fading(now);
+        if (ca <= 0f) return;
+        int layer = ca < 1f ? c.saveLayerAlpha(0, 0, getWidth(), getHeight(), Math.round(255 * ca)) : -1;
+        try {
+            drawViewerChrome(c, sn, now, n, lyricsShown, ca);
+        } finally {
+            if (layer >= 0) c.restoreToCount(layer);
+        }
+    }
+
+    private void drawViewerChrome(Canvas c, Poller.Snapshot sn, long now, int n, boolean lyricsShown, float ca) {
+        boolean live = ca > 0.5f;   // half faded: taps go to the picture (close), not to a button you can barely see
+        if (lyrics != null || lyricsOn) {
             // 1.0.14 (Pierre C. #843): the button names where a tap TAKES you. With lyrics up it reads COVER, so
             // "No lyrics" never sits next to a "LYRICS" button and the way back to the art is obvious.
             String btn = lyricsOn ? "COVER" : "LYRICS";
             float bw = measure(btn, 14, hanken600) + 28;
             roundRect(c, 20, 20, bw, 34, 17, 0xA6000000); strokeRect(c, 20, 20, bw, 34, 17, 0x59FFFFFF, 1);
             drawCentered(c, btn, 20, 20, bw, 34, 14, hanken600, LIGHT);
-            hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; invalidate(); });
+            if (live) hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; invalidate(); });
         }
 
         // 1.0.13.1: "3 / 12 · Scan/03.jpg" moved OFF the picture into the dot row (Václav H. 2026-11-23: the top label
         // disturbed the booklet). It cross-fades with the dots: in over LABEL_IN, holds, out over LABEL_OUT (Michael: "soft").
-        vAnim = false;
         if (n > 1 && !lyricsShown) {   // 1.0.14: the dots belong to the pictures, which are hidden under lyrics
             float dy = 418;
             long since = now - vChangedAt;
@@ -2349,10 +2409,16 @@ public final class ScreenView extends View {
     private void drawToast(Canvas c) {
         tp.setTypeface(hanken600); tp.setTextSize(17 * s);
         float tw = tp.measureText(toast) / s;
-        float w = Math.min(vw - 40, tw + 36), x = (vw - w) / 2f, y = 412;
-        roundRect(c, x, y, w, 42, 12, LIGHT);
+        float w = Math.min(vw - 40, tw + 36), x = (vw - w) / 2f;
+        // 1.0.15-beta.3 (Pierre C.): a long saved path wraps (up to 3 lines) instead of being cut off
+        java.util.List<String> lines = wrap(toast, 17, hanken600, w - 36);
+        if (lines.size() > 3) lines = lines.subList(0, 3);
+        float h = 42 + (lines.size() - 1) * 22, y = 454 - h;
+        roundRect(c, x, y, w, h, 12, LIGHT);
+        tp.setTypeface(hanken600); tp.setTextSize(17 * s);
         tp.setColor(DARK_TEXT);
-        c.drawText(TextUtils.ellipsize(toast, tp, (w - 36) * s, TextUtils.TruncateAt.END).toString(), X(x + 18), Y(y + 27), tp);
+        for (int i = 0; i < lines.size(); i++)
+            c.drawText(TextUtils.ellipsize(lines.get(i).trim(), tp, (w - 36) * s, TextUtils.TruncateAt.END).toString(), X(x + 18), Y(y + 27 + i * 22), tp);
     }
 
     /** A tracked capitals label that shrinks (to 75%) before it would run past maxW. */
