@@ -20,7 +20,7 @@ public final class ReleaseNotes {
     static final String[][] NOTES = {
         {"1.0.16", "2026-11-27",
             "Dynamic range follows along! While an album is measuring, the screen scrolls with the results so the newest track is always in view. Scroll up to read earlier tracks and it waits; scroll back down and it follows again.",
-            "Lyrics you can jump around in! Drag the lyrics (or use the mouse wheel) to read ahead or back without the music moving; after a few seconds they glide back to where you are. Tap any line of synced lyrics to jump straight to it, and a thin progress bar under the lyrics lets you tap anywhere in the song. It fades away after a few seconds so full screen stays clean; touch it to bring it back. Thanks to Pierre C.",
+            "Lyrics you can jump around in! Drag the lyrics (or use the mouse wheel or the Up and Down arrows) to read ahead or back without the music moving; after a few seconds they glide back to where you are. Tap any line of synced lyrics to jump straight to it, and a thin progress bar under the lyrics lets you tap anywhere in the song. It fades away after a few seconds so full screen stays clean; touch it to bring it back. Thanks to Pierre C.",
             "Tap to skip ahead! Tap anywhere on the progress bar on the Simple screen to jump to that moment, just like the Eversolo's own player.",
             "Smaller fixes: an MP2 file now says DR isn't available for MP2, instead of \"files on the Eversolo only\"."},
         {"1.0.15", "2026-11-27",

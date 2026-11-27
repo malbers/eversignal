@@ -2336,6 +2336,12 @@ public final class ScreenView extends View {
     private void lyrEndBrowse() {
         if (lyrBrowsing) { lyrBrowsing = false; lyrGlideFrom = lyrViewY; lyrGlideAt = System.currentTimeMillis(); }
     }
+    /** 1.0.16-beta.5 (Michael): Up/Down arrows scroll synced lyrics one line, no seek. False = not in lyrics. */
+    public boolean lyricsStep(int dir) {
+        if (!lyricsScrollable()) return false;
+        lyrBrowse(lyrBrowsing ? lyrViewY : lyrViewMid, dir * 32);
+        return true;
+    }
     private boolean lyricsScrollable() { return viewer != null && lyricsOn && lyrics != null && lyrics.synced; }
     /** Move the lyrics by dy content units without seeking (drag or mouse wheel). */
     private void lyrBrowse(float fromMid, float dy) {
@@ -3195,6 +3201,12 @@ public final class ScreenView extends View {
      * (Shift + wheel, or a trackpad swipe) changes page, like a swipe.
      */
     @Override public boolean onGenericMotionEvent(MotionEvent e) {
+        // 1.0.16-beta.5 (Michael): with lyrics up, the vertical wheel reads ahead and never seeks. It must come before
+        // the 1.0.12 viewer branch, which took every wheel event and flipped the hidden pictures under the lyrics.
+        if (e.getAction() == MotionEvent.ACTION_SCROLL && lyricsScrollable()) {
+            float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
+            if (v != 0) { lyrBrowse(lyrBrowsing ? lyrViewY : lyrViewMid, -v * 40); return true; }
+        }
         if (e.getAction() == MotionEvent.ACTION_SCROLL && viewer != null) {   // 1.0.12: wheel steps the viewer
             float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL), h = e.getAxisValue(MotionEvent.AXIS_HSCROLL);
             float d = h != 0 ? h : -v;
@@ -3205,10 +3217,6 @@ public final class ScreenView extends View {
             float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
             if (v != 0) { notesScroll = Math.max(0, Math.min(notesMax, notesScroll - v * 50)); invalidate(); }
             return true;
-        }
-        if (e.getAction() == MotionEvent.ACTION_SCROLL && lyricsScrollable()) {   // 1.0.16-beta.4 (Michael): wheel reads ahead, never seeks
-            float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
-            if (v != 0) { lyrBrowse(lyrBrowsing ? lyrViewY : lyrViewMid, -v * 40); return true; }
         }
         if (e.getAction() == MotionEvent.ACTION_SCROLL && detail && info == null) {
             float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL), h = e.getAxisValue(MotionEvent.AXIS_HSCROLL);

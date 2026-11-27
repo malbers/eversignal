@@ -340,6 +340,9 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     /** 1.0.12: remote / keyboard left-right step the art viewer. */
     @Override public boolean onKeyDown(int code, android.view.KeyEvent e) {
         if (view.viewerOpen()) {
+            // 1.0.16-beta.5 (Michael): Up/Down read the lyrics ahead or back, never seek
+            if (code == android.view.KeyEvent.KEYCODE_DPAD_DOWN && view.lyricsStep(1)) return true;
+            if (code == android.view.KeyEvent.KEYCODE_DPAD_UP && view.lyricsStep(-1)) return true;
             if (code == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) { view.viewerStep(1); return true; }
             if (code == android.view.KeyEvent.KEYCODE_DPAD_LEFT) { view.viewerStep(-1); return true; }
         }
