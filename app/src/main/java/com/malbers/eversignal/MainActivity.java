@@ -475,6 +475,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         boolean sameFolder = f.getParent() != null && f.getParent().equals(oldFolder);
         if (!(sameFolder && drAlbum != null && drAlbum.running)) drAlbum = null;
         pushDr();
+        restoreDrOnce();   // queued first on the single DR executor, so the cache read below already sees it
         final File ff = f;
         drExec.execute(() -> {
             DrScan.Item i = DrScan.cached(ff);
@@ -499,6 +500,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         final String key = f.getPath();
         drExec.execute(() -> {
             DrScan.Item i = DrScan.measureTrack(f, () -> drCancel);
+            backupDr();
             DrScan.Album a = DrScan.fromCache(f.getParentFile());
             String w = i == null ? why(f) : null;
             ui.post(() -> {
@@ -528,6 +530,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
                 }
                 pushDr();
             }), () -> drCancel, fresh);
+            backupDr();
             // 1.0.14 (Pierre C.): the album pass may have found the PLAYING file unreadable: say why on its row
             File now = drFile();
             String w = now != null && dir.getPath().equals(now.getParent()) ? why(now) : null;
@@ -537,14 +540,56 @@ public class MainActivity extends Activity implements ScreenView.Actions {
 
     @Override public void cancelDr() { drCancel = true; }
 
+    /**
+     * 1.0.15-beta.3 (Michael, 2026-11-26): copy the DR results to Download/EverSignal/dr-cache-backup.json after a
+     * measure, so an uninstall doesn't lose them. Runs on the DR executor. Overwrites our own copy in place; after a
+     * reinstall Android won't let us overwrite the old one, so a "(1)" copy is made and restore picks the newest.
+     */
+    private void backupDr() {
+        if (android.os.Build.VERSION.SDK_INT < 29 || !DrScan.backupDue()) return;
+        try {
+            String json = DrScan.toJson();
+            android.content.ContentResolver cr = getContentResolver();
+            String rel = Environment.DIRECTORY_DOWNLOADS + "/EverSignal/";
+            Uri u = null;
+            try (android.database.Cursor cur = cr.query(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    new String[]{android.provider.MediaStore.MediaColumns._ID},
+                    android.provider.MediaStore.MediaColumns.DISPLAY_NAME + " LIKE ? AND "
+                        + android.provider.MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ?",
+                    new String[]{DrScan.BACKUP_PREFIX + "%.json", rel + "%"}, null)) {
+                if (cur != null && cur.moveToFirst())
+                    u = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cur.getLong(0));
+            }
+            if (u != null) {
+                try (java.io.OutputStream o = cr.openOutputStream(u, "wt")) {
+                    if (o == null) throw new java.io.IOException("no stream");
+                    o.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+            } else {
+                saveText(DrScan.BACKUP_PREFIX + ".json", json, rel, "application/json");
+            }
+            DrScan.backedUp();
+        } catch (Exception ignored) { }   // a backup that fails is retried after the next measure
+    }
+
+    /** Once File access is on: a fresh install takes its DR results back from the backup in Download. */
+    private boolean drRestoreTried;
+    private void restoreDrOnce() {
+        if (drRestoreTried || !canReadFiles()) return;
+        drRestoreTried = true;
+        drExec.execute(() -> DrScan.restoreIfFresh(new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "EverSignal")));
+    }
+
     /** fix11: one MediaStore write into Download/<rel>; on any failure the half-made entry is removed. */
-    private void saveText(String name, String text, String rel) throws Exception {
+    private void saveText(String name, String text, String rel) throws Exception { saveText(name, text, rel, "text/plain"); }
+
+    private void saveText(String name, String text, String rel, String mime) throws Exception {
         android.content.ContentResolver cr = getContentResolver();
         Uri u = null;
         try {
             android.content.ContentValues cv = new android.content.ContentValues();
             cv.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
-            cv.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+            cv.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mime);
             cv.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, rel);
             cv.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1);
             u = cr.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
@@ -597,7 +642,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
                 }
             }
             final String m = msg;
-            ui.post(() -> view.toast(m));
+            ui.post(() -> view.toast(m, 5000));   // 1.0.15-beta.3 (Pierre C., Michael): 1.6 s was too fast to read the path
         });
     }
 
