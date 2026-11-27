@@ -2121,7 +2121,7 @@ public final class ScreenView extends View {
             float bw = measure(btn, 14, hanken600) + 28;
             roundRect(c, 20, 20, bw, 34, 17, 0xA6000000); strokeRect(c, 20, 20, bw, 34, 17, 0x59FFFFFF, 1);
             drawCentered(c, btn, 20, 20, bw, 34, 14, hanken600, LIGHT);
-            if (live) hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; lyrSeekAt = System.currentTimeMillis(); invalidate(); });
+            if (live) hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; lyrSeekAt = System.currentTimeMillis(); lyrBrowsing = false; lyrGlideAt = 0; invalidate(); });
         }
 
         // 1.0.13.1: "3 / 12 · Scan/03.jpg" moved OFF the picture into the dot row (Václav H. 2026-11-23: the top label
@@ -2322,11 +2322,28 @@ public final class ScreenView extends View {
     /** 1.0.16 (#838, Pierre C.): tapping a synced lyric line jumps to it. Unsynced text has no times to jump to. */
     private void lineHit(int i, float x, float y, float w, float h) {
         final long ms = lyrics.lines.get(i).ms;
-        if (snap != null && snap.track != null && snap.track.canSeek) hit(x, y, w, h, () -> { lyrSeekAt = System.currentTimeMillis(); seek(ms); });
+        if (snap != null && snap.track != null && snap.track.canSeek) hit(x, y, w, h, () -> { lyrSeekAt = System.currentTimeMillis(); lyrEndBrowse(); seek(ms); });
     }
 
     // 1.0.16 (#838): a thin bar under the lyrics. Shown when lyrics open or on a touch, fades after LYR_BAR_SHOW.
     private long lyrSeekAt;
+    // 1.0.16-beta.4: look-ahead state for synced lyrics
+    private Lrc lyrFor;
+    private boolean lyrBrowsing, lyrDragging;
+    private float lyrViewY, lyrViewMid, lyrDownMid, lyrGlideFrom;
+    private long lyrTouchAt, lyrGlideAt;
+    static final long LYR_RETURN_MS = 4000, LYR_GLIDE_MS = 450;
+    private void lyrEndBrowse() {
+        if (lyrBrowsing) { lyrBrowsing = false; lyrGlideFrom = lyrViewY; lyrGlideAt = System.currentTimeMillis(); }
+    }
+    private boolean lyricsScrollable() { return viewer != null && lyricsOn && lyrics != null && lyrics.synced; }
+    /** Move the lyrics by dy content units without seeking (drag or mouse wheel). */
+    private void lyrBrowse(float fromMid, float dy) {
+        lyrBrowsing = true; lyrGlideAt = 0;
+        lyrViewY = fromMid + dy;
+        lyrTouchAt = System.currentTimeMillis();
+        invalidate();
+    }
     static final long LYR_BAR_SHOW = 4000, LYR_BAR_FADE = 600;
     private float lyrBarAlpha(long now) {
         long since = now - lyrSeekAt;
@@ -2358,31 +2375,54 @@ public final class ScreenView extends View {
         long pos = position(sn);
         float w = vw - 140, cx = 70;
         if (lyrics.synced) {
+            // 1.0.16-beta.4 (Michael, like Tidal / Apple Music): the lyrics are one list. Drag or mouse-wheel to read
+            // ahead or back without seeking; LYR_RETURN_MS after the last touch it glides back to the current line.
+            // A tap on a line still jumps there; the current line stays big and white wherever it is.
             int cur = lyrics.indexAt(pos);
+            long now = System.currentTimeMillis();
             float mid = (top + bottom) / 2;
-            // current line (wrapped, up to 2 rows), centred on mid
-            String curText = cur >= 0 ? lyrics.lines.get(cur).text : "";
-            List<String> rows = wrap(curText.isEmpty() ? "♪" : curText, 34, hanken600, w);
-            if (rows.size() > 2) rows = rows.subList(0, 2);
-            float ch = rows.size() * 42;
-            float y = mid - ch / 2;
-            for (String r : rows) { drawCentered(c, r, cx, y, w, 42, 34, hanken600, Color.WHITE); y += 42; }
-            if (cur >= 0) lineHit(cur, cx, mid - ch / 2, w, ch);
-            // before
-            float by = mid - ch / 2 - 8;
-            for (int i = cur - 1; i >= Math.max(0, cur - 2); i--) {
-                by -= 32;
-                if (by < top) break;
-                drawCentered(c, lyrics.lines.get(i).text, cx, by, w, 32, 22, hanken500, 0x59FFFFFF);
-                lineHit(i, cx, by, w, 32);
+            int n = lyrics.lines.size();
+            if (lyrics != lyrFor) { lyrFor = lyrics; lyrBrowsing = false; lyrGlideAt = 0; }
+            // layout: every line 32 tall, the current one wrapped to up to 2 rows of 42, 8 of room either side of it
+            List<String> curRows = wrap(cur >= 0 && !lyrics.lines.get(cur).text.isEmpty() ? lyrics.lines.get(cur).text : "\u266a", 34, hanken600, w);
+            if (curRows.size() > 2) curRows = curRows.subList(0, 2);
+            float[] lt = new float[n], lh = new float[n];
+            float acc = 0;
+            for (int i = 0; i < n; i++) {
+                if (i == cur) acc += 8;
+                lt[i] = acc; lh[i] = i == cur ? curRows.size() * 42 : 32;
+                acc += lh[i];
+                if (i == cur) acc += 8;
             }
-            // after
-            float ay = mid + ch / 2 + 8;
-            for (int i = cur + 1; i <= Math.min(lyrics.lines.size() - 1, cur + 3); i++) {
-                if (ay + 32 > bottom) break;
-                drawCentered(c, lyrics.lines.get(i).text, cx, ay, w, 32, 22, hanken500, i == cur + 1 ? 0x99FFFFFF : 0x59FFFFFF);
-                lineHit(i, cx, ay, w, 32);
-                ay += 32;
+            float follow = cur >= 0 ? lt[cur] + lh[cur] / 2 : (n > 0 ? lt[0] : 0);
+            if (lyrBrowsing && !lyrDragging && now - lyrTouchAt > LYR_RETURN_MS) {
+                lyrBrowsing = false; lyrGlideFrom = lyrViewY; lyrGlideAt = now;
+            }
+            float view;
+            if (lyrBrowsing) {
+                float lo = n > 0 ? lt[0] + 16 : 0, hi = n > 0 ? lt[n - 1] + lh[n - 1] / 2 : 0;
+                lyrViewY = Math.max(lo, Math.min(hi, lyrViewY));
+                view = lyrViewY;
+            } else if (lyrGlideAt > 0 && now - lyrGlideAt < LYR_GLIDE_MS) {
+                float k = (now - lyrGlideAt) / (float) LYR_GLIDE_MS, e = 1 - (1 - k) * (1 - k) * (1 - k);
+                view = lyrGlideFrom + (follow - lyrGlideFrom) * e;
+                vAnim = true;
+            } else {
+                lyrGlideAt = 0;
+                view = follow;
+            }
+            lyrViewMid = view;
+            for (int i = 0; i < n; i++) {
+                float y = mid + lt[i] - view;
+                if (y + lh[i] < top || y > bottom) continue;
+                if (i == cur) {
+                    float ry = y;
+                    for (String r : curRows) { drawCentered(c, r, cx, ry, w, 42, 34, hanken600, Color.WHITE); ry += 42; }
+                } else {
+                    int col = lyrBrowsing ? 0x80FFFFFF : (i == cur + 1 ? 0x99FFFFFF : 0x59FFFFFF);
+                    drawCentered(c, lyrics.lines.get(i).text, cx, y, w, 32, 22, hanken500, col);
+                }
+                lineHit(i, cx, y, w, lh[i]);
             }
         } else {
             float frac = t.durationMs > 0 ? Math.min(1f, pos / (float) t.durationMs) : 0f;
@@ -3091,10 +3131,17 @@ public final class ScreenView extends View {
         switch (e.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 downX = e.getX(); downY = e.getY(); downScroll = notes != null ? notesScroll : scroll[page]; dragging = false;
+                lyrDownMid = lyrBrowsing ? lyrViewY : lyrViewMid; lyrDragging = false;
                 return true;
             case MotionEvent.ACTION_MOVE: {
                 float dx = e.getX() - downX, dy = e.getY() - downY;
-                if (viewer != null) return true;
+                if (viewer != null) {
+                    if (lyricsScrollable() && (lyrDragging || (Math.abs(dy) > 8 * s && Math.abs(dy) > Math.abs(dx)))) {
+                        lyrDragging = true;
+                        lyrBrowse(lyrDownMid, -dy / s);
+                    }
+                    return true;
+                }
                 if (notes != null) {
                     if (Math.abs(dy) > 8 * s) {
                         dragging = true;
@@ -3114,6 +3161,7 @@ public final class ScreenView extends View {
             case MotionEvent.ACTION_UP: {
                 float dx = e.getX() - downX, dy = e.getY() - downY;
                 tapX = e.getX();
+                if (viewer != null && lyrDragging) { lyrDragging = false; lyrTouchAt = System.currentTimeMillis(); return true; }
                 if (viewer != null) {   // 1.0.12: swipe steps, a button acts, any other tap closes
                     if (Math.abs(dx) > 60 * s && Math.abs(dx) > Math.abs(dy) * 1.5f) { viewerStep(dx < 0 ? 1 : -1); return true; }
                     for (int i = hits.size() - 1; i >= 0; i--) {
@@ -3157,6 +3205,10 @@ public final class ScreenView extends View {
             float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
             if (v != 0) { notesScroll = Math.max(0, Math.min(notesMax, notesScroll - v * 50)); invalidate(); }
             return true;
+        }
+        if (e.getAction() == MotionEvent.ACTION_SCROLL && lyricsScrollable()) {   // 1.0.16-beta.4 (Michael): wheel reads ahead, never seeks
+            float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
+            if (v != 0) { lyrBrowse(lyrBrowsing ? lyrViewY : lyrViewMid, -v * 40); return true; }
         }
         if (e.getAction() == MotionEvent.ACTION_SCROLL && detail && info == null) {
             float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL), h = e.getAxisValue(MotionEvent.AXIS_HSCROLL);
