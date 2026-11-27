@@ -457,7 +457,16 @@ public class MainActivity extends Activity implements ScreenView.Actions {
         return ArtLoader.isLocal(p) && DrScan.isDsd(p);
     }
 
-    private void pushDr() { view.setDr(drFile() != null, drDsd(), drTrack, drTrackWhy, drTrackRunning, drAlbum); }
+    /** 1.0.16 (Michael, an .mp2 said "files on the Eversolo only"): a local file of a type DR can't read, e.g. "MP2". */
+    private String drUnsupported() {
+        String p = last == null ? null : last.playingFrom;
+        if (!ArtLoader.isLocal(p) || DrScan.isAudio(p) || DrScan.isDsd(p)) return null;
+        int dot = p.lastIndexOf('.'), slash = p.lastIndexOf('/');
+        if (dot <= slash || dot >= p.length() - 1) return null;
+        return p.substring(dot + 1).toUpperCase(java.util.Locale.US);
+    }
+
+    private void pushDr() { view.setDr(drFile() != null, drDsd(), drUnsupported(), drTrack, drTrackWhy, drTrackRunning, drAlbum); }
 
     /** Executor side: the reason, only when the cache says this file is unreadable. */
     private static String why(File f) { return f != null && DrScan.knownUnreadable(f) ? DrScan.whyUnreadable(f) : null; }
@@ -797,6 +806,7 @@ public class MainActivity extends Activity implements ScreenView.Actions {
     @Override public void playPause() { send(Api.PLAY_PAUSE); }
     @Override public void next() { send(Api.NEXT); }
     @Override public void previous() { send(Api.PREVIOUS); }
+    @Override public void seekTo(long ms) { send(Api.seek(ms)); }
 
     /** "made by @malbers" on the Simple screen: opens the YouTube channel in whatever browser/app handles it. */
     static final String CHANNEL_URL = "https://www.youtube.com/@malbers";

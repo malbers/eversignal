@@ -35,6 +35,7 @@ public final class ScreenView extends View {
         void playPause();
         void next();
         void previous();
+        void seekTo(long ms);   // 1.0.16: Simple bar tap + lyrics
         void vu();
         void eq();
         void toggleStay();
@@ -615,6 +616,7 @@ public final class ScreenView extends View {
         float frac = t.durationMs > 0 ? Math.min(1f, position(sn) / (float) t.durationMs) : 0;
         roundRect(c, x, y, w, 4, 2, 0x24F4F1EC);
         if (frac > 0) roundRect(c, x, y, w * frac, 4, 2, paused ? 0x73F4F1EC : LIGHT);
+        seekHit(sn, x, y, w);
     }
 
     /** "1/7" chip, bottom-right of the cover: stacked-pictures icon + count. (rx, by) = the chip's right and bottom. */
@@ -996,10 +998,39 @@ public final class ScreenView extends View {
         float frac = t.durationMs > 0 ? Math.min(1f, pos / (float) t.durationMs) : 0;
         roundRect(c, x, y, w, 4, 2, 0x24FFFFFF);
         if (frac > 0) roundRect(c, x, y, w * frac, 4, 2, LIGHT);
+        seekHit(sn, x, y, w);
         text(c, mss(pos), x, y + 4 + 6 + size, size, mono400, 0x9EFFFFFF, 90);
         String total = t.durationMs > 0 ? mss(t.durationMs) : "";
         float tw = measure(total, size, mono400);
         text(c, total, x + w - tw, y + 4 + 6 + size, size, mono400, 0x9EFFFFFF, tw + 2);
+    }
+
+    // ---- 1.0.16: seeking (Michael: tap the Simple bar; #838 Pierre C.: tap a lyric line, a bar under the lyrics)
+    private float tapX;   // set on ACTION_UP before the hit runs, so a bar knows where along it you tapped
+    static final long SEEK_SETTLE_MS = 3000;   // no seek in a track's first 3 s: on 1.5.90 a seek right after load
+                                               // went silent while the player still said "playing" (Zidoo 103694)
+    /** A fingertip-high tap strip around a thin bar at (x, y, w): the tap position becomes the time. */
+    private void seekHit(Poller.Snapshot sn, float x, float y, float w) {
+        Track t = sn.track;
+        if (t == null || t.durationMs <= 0 || !t.canSeek) return;
+        final float left = X(x), width = w * s;
+        hit(x, y - 10, w, 24, () -> {
+            float f = Math.max(0f, Math.min(1f, (tapX - left) / width));
+            seek(Math.round(f * t.durationMs));
+        });
+    }
+
+    /** One seek: guarded, then shown at once (the next poll confirms it). */
+    private void seek(long ms) {
+        Poller.Snapshot sn = snap;
+        if (sn == null || sn.track == null) return;
+        Track t = sn.track;
+        if (!t.canSeek || t.durationMs <= 0) { toast("This track can't be skipped through"); return; }
+        if (position(sn) < SEEK_SETTLE_MS) { toast("One moment, the track just started"); return; }
+        ms = Math.max(0, Math.min(ms, t.durationMs - 1000));
+        actions.seekTo(ms);
+        t.positionMs = ms; sn.stateAt = System.currentTimeMillis();
+        invalidate();
     }
 
     private static long position(Poller.Snapshot sn) {
@@ -1640,6 +1671,11 @@ public final class ScreenView extends View {
             d.wrap(null, "DR isn't available for DSD files yet: Android has no DSD decoder to read them with.");
             return d;
         }
+        if (drUnsupported != null) {   // 1.0.16 (Michael): was the streams message for an .mp2 on the Eversolo
+            d.wrapSize = 13;
+            d.wrap(null, "DR isn't available for " + drUnsupported + " files.");
+            return d;
+        }
         if (!drLocal) {
             d.wrapSize = 13;
             d.wrap(null, "For files on the Eversolo only (not streams, casts or apps).");
@@ -2060,7 +2096,7 @@ public final class ScreenView extends View {
                     lyricGradient(lyricHue), new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP));
                 c.drawRect(area, p);
                 p.setShader(null);
-                if (lyrics != null) drawLyrics(c, sn, top + 40, bottom - 10);
+                if (lyrics != null) { drawLyrics(c, sn, top + 40, bottom - 24); drawLyricsBar(c, sn, bottom - 12, now); }
                 else drawCentered(c, "No lyrics", 0, (top + bottom) / 2 - 20, vw, 40, 28, hanken500, 0x99FFFFFF);
             }
         }
@@ -2085,7 +2121,7 @@ public final class ScreenView extends View {
             float bw = measure(btn, 14, hanken600) + 28;
             roundRect(c, 20, 20, bw, 34, 17, 0xA6000000); strokeRect(c, 20, 20, bw, 34, 17, 0x59FFFFFF, 1);
             drawCentered(c, btn, 20, 20, bw, 34, 14, hanken600, LIGHT);
-            if (live) hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; invalidate(); });
+            if (live) hit(20, 20, bw, 34, () -> { lyricsOn = !lyricsOn; lyrSeekAt = System.currentTimeMillis(); invalidate(); });
         }
 
         // 1.0.13.1: "3 / 12 · Scan/03.jpg" moved OFF the picture into the dot row (Václav H. 2026-11-23: the top label
@@ -2283,6 +2319,40 @@ public final class ScreenView extends View {
      * 1.0.12: lyrics, large, for reading across the room. Synced: the current line big and bright with two lines
      * before and three after, dimmer. Unsynced (no timestamps): the text scrolls with the track's progress.
      */
+    /** 1.0.16 (#838, Pierre C.): tapping a synced lyric line jumps to it. Unsynced text has no times to jump to. */
+    private void lineHit(int i, float x, float y, float w, float h) {
+        final long ms = lyrics.lines.get(i).ms;
+        if (snap != null && snap.track != null && snap.track.canSeek) hit(x, y, w, h, () -> { lyrSeekAt = System.currentTimeMillis(); seek(ms); });
+    }
+
+    // 1.0.16 (#838): a thin bar under the lyrics. Shown when lyrics open or on a touch, fades after LYR_BAR_SHOW.
+    private long lyrSeekAt;
+    static final long LYR_BAR_SHOW = 4000, LYR_BAR_FADE = 600;
+    private float lyrBarAlpha(long now) {
+        long since = now - lyrSeekAt;
+        if (since < LYR_BAR_SHOW) return 1f;
+        return Math.max(0f, 1f - (since - LYR_BAR_SHOW) / (float) LYR_BAR_FADE);
+    }
+    private void drawLyricsBar(Canvas c, Poller.Snapshot sn, float y, long now) {
+        Track t = sn.track;
+        if (t == null || t.durationMs <= 0 || !t.canSeek) return;
+        float a = lyrBarAlpha(now), x = 70, w = vw - 140;
+        if (a > 0f) {
+            float frac = Math.min(1f, position(sn) / (float) t.durationMs);
+            roundRect(c, x, y, w, 4, 2, alpha(0x33FFFFFF, a));
+            if (frac > 0) roundRect(c, x, y, w * frac, 4, 2, alpha(0xE6FFFFFF, a));
+            if (a < 1f) vAnim = true;
+            final float left = X(x), width = w * s;
+            hit(x, y - 10, w, 24, () -> {
+                lyrSeekAt = System.currentTimeMillis();
+                float f = Math.max(0f, Math.min(1f, (tapX - left) / width));
+                seek(Math.round(f * t.durationMs));
+            });
+        } else {
+            hit(x, y - 10, w, 24, () -> { lyrSeekAt = System.currentTimeMillis(); invalidate(); });   // faded: a touch brings it back
+        }
+    }
+
     private void drawLyrics(Canvas c, Poller.Snapshot sn, float top, float bottom) {
         Track t = sn.track;
         long pos = position(sn);
@@ -2297,18 +2367,21 @@ public final class ScreenView extends View {
             float ch = rows.size() * 42;
             float y = mid - ch / 2;
             for (String r : rows) { drawCentered(c, r, cx, y, w, 42, 34, hanken600, Color.WHITE); y += 42; }
+            if (cur >= 0) lineHit(cur, cx, mid - ch / 2, w, ch);
             // before
             float by = mid - ch / 2 - 8;
             for (int i = cur - 1; i >= Math.max(0, cur - 2); i--) {
                 by -= 32;
                 if (by < top) break;
                 drawCentered(c, lyrics.lines.get(i).text, cx, by, w, 32, 22, hanken500, 0x59FFFFFF);
+                lineHit(i, cx, by, w, 32);
             }
             // after
             float ay = mid + ch / 2 + 8;
             for (int i = cur + 1; i <= Math.min(lyrics.lines.size() - 1, cur + 3); i++) {
                 if (ay + 32 > bottom) break;
                 drawCentered(c, lyrics.lines.get(i).text, cx, ay, w, 32, 22, hanken500, i == cur + 1 ? 0x99FFFFFF : 0x59FFFFFF);
+                lineHit(i, cx, ay, w, 32);
                 ay += 32;
             }
         } else {
@@ -2487,7 +2560,9 @@ public final class ScreenView extends View {
         if (drFollowTarget >= 0) drFollowPaused = scroll[page] < drFollowTarget - 1;
     }
     private String drWhy;
-    public void setDr(boolean local, boolean dsd, DrScan.Item track, String why, boolean trackRunning, DrScan.Album album) {
+    private String drUnsupported;   // 1.0.16: "MP2" etc., a local file DR can't read
+    public void setDr(boolean local, boolean dsd, String unsupported, DrScan.Item track, String why, boolean trackRunning, DrScan.Album album) {
+        drUnsupported = unsupported;
         drLocal = local; drDsd = dsd; drTrack = track; drWhy = why; drTrackRunning = trackRunning; drAlbum = album; invalidate();
     }
     private int slideSecs = 10;
@@ -3038,6 +3113,7 @@ public final class ScreenView extends View {
             }
             case MotionEvent.ACTION_UP: {
                 float dx = e.getX() - downX, dy = e.getY() - downY;
+                tapX = e.getX();
                 if (viewer != null) {   // 1.0.12: swipe steps, a button acts, any other tap closes
                     if (Math.abs(dx) > 60 * s && Math.abs(dx) > Math.abs(dy) * 1.5f) { viewerStep(dx < 0 ? 1 : -1); return true; }
                     for (int i = hits.size() - 1; i >= 0; i--) {

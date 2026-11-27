@@ -19,7 +19,10 @@ public final class ReleaseNotes {
     /** {version, date, bullet...}, newest first. Add the new release at the top on every version bump. */
     static final String[][] NOTES = {
         {"1.0.16", "2026-11-27",
-            "Dynamic range follows along! While an album is measuring, the screen scrolls with the results so the newest track is always in view. Scroll up to read earlier tracks and it waits; scroll back down and it follows again."},
+            "Dynamic range follows along! While an album is measuring, the screen scrolls with the results so the newest track is always in view. Scroll up to read earlier tracks and it waits; scroll back down and it follows again.",
+            "Lyrics you can jump around in! Tap any line of synced lyrics to jump straight to it, and a thin progress bar under the lyrics lets you tap anywhere in the song. It fades away after a few seconds so full screen stays clean; touch it to bring it back. Thanks to Pierre C.",
+            "Tap to skip ahead! Tap anywhere on the progress bar on the Simple screen to jump to that moment, just like the Eversolo's own player.",
+            "Smaller fixes: an MP2 file now says DR isn't available for MP2, instead of \"files on the Eversolo only\"."},
         {"1.0.15", "2026-11-27",
             "SACD ISOs, each with its own art! When several ISOs share a folder, every album now shows only its own cover (\"<ISO name>.jpg\") and its own extras from Scans/<ISO name>/, the layout AddMyCoverArt 1.1.2 saves. An ISO alone in its folder works as before.",
             "Full-Screen Album Mode, truly full screen! Once the slideshow turns the page, the stats line fades away and the picture gets the whole screen. Swipe, or a new track, and it comes back until the next page turn. Lyrics keep it.",

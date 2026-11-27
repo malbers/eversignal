@@ -43,6 +43,8 @@ public final class Api {
     public static final String PLAY_PAUSE = "ZidooMusicControl/v2/playOrPause";
     public static final String NEXT = "ZidooMusicControl/v2/playNext";
     public static final String PREVIOUS = "ZidooMusicControl/v2/playLast";
+    /** 1.0.16: jump within the playing track. Probed on fw 1.6.40 (2026-11-27): time in ms, {"status":200}. */
+    public static String seek(long ms) { return "ZidooMusicControl/v2/seekTo?time=" + Math.max(0, ms); }
     /** Cycles the player's own screen: menu, song info, VU with info, VU only. */
     public static final String VU = "ZidooMusicControl/v2/changVUDisplay?openType=0";
 
