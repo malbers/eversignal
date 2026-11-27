@@ -339,6 +339,14 @@ Betas are real releases, signed with the same key, but newer and less tested. If
 
 ## What's new
 
+**1.0.15** (27 November 2026)
+- **SACD ISOs, each with its own art!** When several ISOs share a folder, every album now shows only its own cover (`<ISO name>.jpg`) and its own extras from `Scans/<ISO name>/`, the layout AddMyCoverArt 1.1.2 saves. An ISO alone in its folder works as before.
+- **Full-Screen Album Mode, truly full screen!** Once the slideshow turns the page, the stats line fades away and the picture gets the whole screen. Swipe, or a new track, and it comes back until the next page turn. Lyrics keep it.
+- **Back goes back!** Back now steps out one screen at a time: Detail to Simple, Settings to where you opened it, and only Back from Simple leaves EverSignal.
+- **Dynamic range, tidier!** The Measure buttons sit right under the results, the explanation moved behind an **Info** button (with where saved logs go), a track you measured on its own shows in the album list straight away, and the "Saved" message stays up long enough to read. Thanks to Pierre C.
+- **Your DR results survive a reinstall!** EverSignal keeps a copy of its measurements in Download › EverSignal and takes them back after a fresh install.
+- **Smaller fixes:** DTS tracks show as Lossy, never Bit-perfect (thanks to Pierre C.); Dynamic range on an SACD ISO says it isn't available for DSD yet; the Device panel's output line now says it's the Eversolo's own description ("HDMI, per the Eversolo").
+
 **1.0.14** (25 November 2026)
 - **Sound styles, caught!** On firmware 1.6.40 and later, a sound style (EVS) changes your music, so EverSignal no longer calls it Bit-perfect: you see an amber **Sound style on**, it leads the Processing column, and an EVS on/off line sits under Sub. Older firmware is unaffected.
 - **SACD ISO, done right!** ISO tracks show as DSD native, with **2&6 ch** and **DST64** just like the Eversolo's own screen, and the badge explains both. Thanks to Pierre C.

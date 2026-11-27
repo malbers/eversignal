@@ -18,7 +18,7 @@ public final class ReleaseNotes {
 
     /** {version, date, bullet...}, newest first. Add the new release at the top on every version bump. */
     static final String[][] NOTES = {
-        {"1.0.15", "2026-11-25",
+        {"1.0.15", "2026-11-27",
             "SACD ISOs, each with its own art! When several ISOs share a folder, every album now shows only its own cover (\"<ISO name>.jpg\") and its own extras from Scans/<ISO name>/, the layout AddMyCoverArt 1.1.2 saves. An ISO alone in its folder works as before.",
             "Full-Screen Album Mode, truly full screen! Once the slideshow turns the page, the stats line fades away and the picture gets the whole screen. Swipe, or a new track, and it comes back until the next page turn. Lyrics keep it.",
             "Back goes back! Back now steps out one screen at a time: Detail to Simple, Settings to where you opened it, and only Back from Simple leaves EverSignal.",
