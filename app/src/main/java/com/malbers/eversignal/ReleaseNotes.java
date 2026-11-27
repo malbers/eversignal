@@ -18,6 +18,8 @@ public final class ReleaseNotes {
 
     /** {version, date, bullet...}, newest first. Add the new release at the top on every version bump. */
     static final String[][] NOTES = {
+        {"1.0.16", "2026-11-27",
+            "Dynamic range follows along! While an album is measuring, the screen scrolls with the results so the newest track is always in view. Scroll up to read earlier tracks and it waits; scroll back down and it follows again."},
         {"1.0.15", "2026-11-27",
             "SACD ISOs, each with its own art! When several ISOs share a folder, every album now shows only its own cover (\"<ISO name>.jpg\") and its own extras from Scans/<ISO name>/, the layout AddMyCoverArt 1.1.2 saves. An ISO alone in its folder works as before.",
             "Full-Screen Album Mode, truly full screen! Once the slideshow turns the page, the stats line fades away and the picture gets the whole screen. Swipe, or a new track, and it comes back until the next page turn. Lyrics keep it.",

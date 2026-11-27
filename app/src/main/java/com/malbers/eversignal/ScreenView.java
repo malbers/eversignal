@@ -1407,6 +1407,20 @@ public final class ScreenView extends View {
                 ty += sectionHeight(sec, fullW) + gap;
             }
         }
+        // 1.0.16-beta.1 (Michael): while an album is measuring, keep the newest result in view. The list is the
+        // bottom of the Dynamic range section, so keep that edge on screen. Only ever scrolls DOWN; scrolling up by
+        // hand pauses it (so you can read earlier tracks), scrolling back to the bottom resumes it.
+        drFollowTarget = -1;
+        if (drAlbum != null && drAlbum.running) {
+            float ty = 0;
+            for (Section sec : sections) {
+                if (sec.kind != FULL) continue;
+                float sh = sectionHeight(sec, fullW);
+                if ("Dynamic range".equals(sec.title)) { drFollowTarget = Math.max(0, ty + sh - viewH); break; }
+                ty += sh + gap;
+            }
+            if (drFollowTarget >= 0 && !drFollowPaused && scroll[page] < drFollowTarget) scroll[page] = drFollowTarget;
+        }
         float off = scroll[page];
         beginContent(c);
         float fy = 0;
@@ -1671,7 +1685,7 @@ public final class ScreenView extends View {
         else {
             if (drTrack == null && drWhy == null) d.button("Measure track", actions::measureDrTrack);
             d.button(a != null && a.value() != null ? "Measure again" : "Measure album",
-                () -> { drScrollTop = true; actions.measureDrAlbum(); });
+                () -> { drScrollTop = true; drFollowPaused = false; actions.measureDrAlbum(); });
             // 1.0.14 (Pierre C.): a foobar-style text log in Download, to compare with foobar / the DR database
             if (a != null && !a.items.isEmpty()) d.button("Save to Download", actions::exportDr);
         }
@@ -2464,6 +2478,12 @@ public final class ScreenView extends View {
     private DrScan.Album drAlbum;
     private boolean drTrackRunning, drLocal, drDsd;
     private boolean drScrollTop;   // fix10: set by Measure album / again, consumed by the next Detail draw
+    private boolean drFollowPaused;   // 1.0.16-beta.1: the user scrolled up during an album measure
+    private float drFollowTarget = -1;   // scroll that puts the newest DR result at the bottom; -1 = not following
+    /** A hand scroll during an album measure: up pauses the follow, back down to the newest result resumes it. */
+    private void drHandScrolled() {
+        if (drFollowTarget >= 0) drFollowPaused = scroll[page] < drFollowTarget - 1;
+    }
     private String drWhy;
     public void setDr(boolean local, boolean dsd, DrScan.Item track, String why, boolean trackRunning, DrScan.Album album) {
         drLocal = local; drDsd = dsd; drTrack = track; drWhy = why; drTrackRunning = trackRunning; drAlbum = album; invalidate();
@@ -3009,6 +3029,7 @@ public final class ScreenView extends View {
                 if (info == null && detail && Math.abs(dy) > 8 * s && Math.abs(dy) > Math.abs(dx)) {
                     dragging = true;
                     scroll[page] = Math.max(0, Math.min(maxScroll, downScroll - dy / (s * Z)));
+                    drHandScrolled();
                     invalidate();
                 }
                 return true;
@@ -3068,6 +3089,7 @@ public final class ScreenView extends View {
             }
             if (v != 0) {
                 scroll[page] = Math.max(0, Math.min(maxScroll, scroll[page] - v * WHEEL_STEP));
+                drHandScrolled();
                 invalidate();
                 return true;
             }
