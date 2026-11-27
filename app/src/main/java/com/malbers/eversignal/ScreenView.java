@@ -1416,7 +1416,7 @@ public final class ScreenView extends View {
             for (Section sec : sections) {
                 if (sec.kind != FULL) continue;
                 float sh = sectionHeight(sec, fullW);
-                if ("Dynamic range".equals(sec.title)) { drFollowTarget = Math.max(0, ty + sh - viewH); break; }
+                if ("Dynamic range".equals(sec.title)) { drFollowTarget = Math.max(0, ty + sh + DR_FOLLOW_MARGIN - viewH); break; }
                 ty += sh + gap;
             }
             if (drFollowTarget >= 0 && !drFollowPaused && scroll[page] < drFollowTarget) scroll[page] = drFollowTarget;
@@ -2479,6 +2479,8 @@ public final class ScreenView extends View {
     private boolean drTrackRunning, drLocal, drDsd;
     private boolean drScrollTop;   // fix10: set by Measure album / again, consumed by the next Detail draw
     private boolean drFollowPaused;   // 1.0.16-beta.1: the user scrolled up during an album measure
+    // beta.2 (Michael's screenshot: the newest row sat half under the bottom edge): keep about one row of room below it
+    private static final float DR_FOLLOW_MARGIN = 18;
     private float drFollowTarget = -1;   // scroll that puts the newest DR result at the bottom; -1 = not following
     /** A hand scroll during an album measure: up pauses the follow, back down to the newest result resumes it. */
     private void drHandScrolled() {
